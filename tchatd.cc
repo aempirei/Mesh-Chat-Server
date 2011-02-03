@@ -790,7 +790,7 @@ void do_read(int fd) {
 	static char buf[4096];
 	int n;
 
-	option::debug && printf("reading up to %u bytes from %d\n", sizeof(buf), fd);
+	option::debug && printf("reading up to %ld bytes from %d\n", (long)sizeof(buf), fd);
 
 	do {
 		n = recv(fd, (void *)buf, sizeof(buf), 0);
