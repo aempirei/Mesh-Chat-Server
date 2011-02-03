@@ -790,7 +790,7 @@ void do_read(int fd) {
 	static char buf[4096];
 	int n;
 
-	option::debug && printf("reading up to %lu bytes from %d\n", sizeof(buf), fd);
+	option::debug && printf("reading up to %u bytes from %d\n", sizeof(buf), fd);
 
 	do {
 		n = recv(fd, (void *)buf, sizeof(buf), 0);
@@ -971,9 +971,9 @@ void do_login(int fd) {
 }
 
 void do_command_user(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
-	if(params.size() == 0) {
+	if((long)params.size() == 0) {
 
 		do_message(fd, MCPARAMS, CUSER);
 
@@ -1026,9 +1026,9 @@ void do_command_user(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_pass(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
-	if(params.size() == 0) {
+	if((long)params.size() == 0) {
 
 		do_message(fd, MCPARAMS, CPASS);
 
@@ -1065,7 +1065,7 @@ void do_command_pass(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_set(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CSET);
 		// if VAR ok
@@ -1078,7 +1078,7 @@ void do_command_set(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_ping(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CPING);
 		// if ping ok
@@ -1088,7 +1088,7 @@ void do_command_ping(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_pong(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CPONG);
 		// pong reply CPONG
@@ -1097,7 +1097,7 @@ void do_command_pong(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CFRIEND);
 		// if user exists
@@ -1112,7 +1112,7 @@ void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CANTI);
 		// if user exists
@@ -1128,12 +1128,12 @@ void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_listen(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	do_message(fd, MCUNIMPL, CLISTEN);
 	// listen CLISTEN
 }
 void do_command_say(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CSAY);
 		// say route CSAY
@@ -1142,7 +1142,7 @@ void do_command_say(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_vector(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CVECTOR);
 		// vector route CVECTOR
@@ -1151,12 +1151,12 @@ void do_command_vector(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_radio(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	do_message(fd, MCUNIMPL, CRADIO);
 	// relay CRADIO
 }
 void do_command_whisper(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CWHISPER);
 		// whisper route CWHISPER
@@ -1165,7 +1165,7 @@ void do_command_whisper(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_tell(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CTELL);
 		// if user exists
@@ -1175,14 +1175,14 @@ void do_command_tell(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_whois(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	do_message(fd, MCUNIMPL, CWHOIS);
 	// if user exists
 		// if user is visible
 			// do MCWHOIS
 }
 void do_command_scan(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CSCAN);
 		// for each distance
@@ -1195,7 +1195,7 @@ void do_command_scan(int fd, const paramlist_t& params, const string& msg) {
 }
 void do_command_friends(int fd, const paramlist_t& params, const string& msg) {
 
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	if(is_validated(fd)) {
 
@@ -1224,13 +1224,13 @@ void do_command_friends(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_quit(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, params.size(), msg.c_str());
+	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	do_message(fd, MCGOODBYE);
 	do_disconnect(fd);
 }
 
 void do_unknown_command(int fd, const string& command, const paramlist_t& params, const string& msg) {
-	option::debug && printf("*** %s ( %d %s [ %ld ] %s )\n", __FUNCTION__, fd, command.c_str(), params.size(), msg.c_str());
+	option::debug && printf("*** %s ( %d %s [ %ld ] %s )\n", __FUNCTION__, fd, command.c_str(), (long)params.size(), msg.c_str());
 	do_message(fd, MCCMD, command.c_str());
 }
 
