@@ -182,6 +182,7 @@ namespace command {
 #define MCREQUEST  "062"
 #define MCANTI     "063"
 #define MCDISTANCE "064"
+#define MCRREQUEST "065"
 
 #define MCBEGIN    "080"
 #define MCEND      "081"
@@ -194,6 +195,9 @@ namespace command {
 #define MCCMD      "103"
 #define MCUSERINV  "104"
 #define MCUNIMPL   "105"
+#define MCUSERUNK  "106"
+#define MCNOSELF   "107"
+#define MCNODUPES  "108"
 
 // rate limit messages
 
@@ -207,41 +211,45 @@ namespace command {
 #define MCPASS     "302"
 #define MCRESET    "303"
 
-		{ MCSERVER  , "tchatd-" VERSION         },
-		{ MCMOTD    , "message of the day"      },
-		{ MCNAME    , "server name"             },
-		{ MCCREATED , "login created"           },
-		{ MCVERIFIED, "login verified"          },
+		{ MCSERVER  , "tchatd-" VERSION             },
+		{ MCMOTD    , "message of the day"          },
+		{ MCNAME    , "server name"                 },
+		{ MCCREATED , "login created"               },
+		{ MCVERIFIED, "login verified"              },
 
-		{ MCFRIEND  , "friend"                  },
-		{ MCREQUEST , "request"                 },
-		{ MCANTI    , "anti"                    },
-		{ MCDISTANCE, "distance"                },
+		{ MCFRIEND  , "friend"                      },
+		{ MCREQUEST , "request"                     },
+		{ MCANTI    , "anti"                        },
+		{ MCDISTANCE, "distance"                    },
+		{ MCRREQUEST, "request from"                },
 
-		{ MCBEGIN   , "begin"                   },
-		{ MCEND     , "end"                     },
+		{ MCBEGIN   , "begin"                       },
+		{ MCEND     , "end"                         },
 
-		{ MCNEWUSER , "changed username"        },
-		{ MCNEWPASS , "changed password"        },
+		{ MCNEWUSER , "changed username"            },
+		{ MCNEWPASS , "changed password"            },
 
-		{ MCGOODBYE , "goodbye"                 },
+		{ MCGOODBYE , "goodbye"                     },
 
-		{ MCUNIMPL  , "command unimplemented"   },
+		{ MCUNIMPL  , "command unimplemented"       },
 
-		{ MCNEEDUSER, "please provide username" },
-		{ MCNEEDPASS, "please provide password" },
-		{ MCLOGIN   , "command requires login"  },
+		{ MCNEEDUSER, "please provide username"     },
+		{ MCNEEDPASS, "please provide password"     },
+		{ MCLOGIN   , "command requires login"      },
 
-		{ MCPARAMS  , "incorrect parameters"    },
-		{ MCMSG     , "missing message"         },
-		{ MCCMD     , "unknown command"         },
-		{ MCUSERINV , "username invalid"        },
+		{ MCPARAMS  , "incorrect parameters"        },
+		{ MCMSG     , "missing message"             },
+		{ MCCMD     , "unknown command"             },
+		{ MCUSERINV , "username invalid"            },
+		{ MCUSERUNK , "unknown user"                },
+		{ MCNOSELF  , "cannot target self"          },
 
-		{ MCUSER    , "username unavailable"    },
-		{ MCPASS    , "incorrect password"      },
-		{ MCRESET   , "start login over"        },
+		{ MCUSER    , "username unavailable"        },
+		{ MCPASS    , "incorrect password"          },
+		{ MCRESET   , "start login over"            },
+		{ MCNODUPES , "multiple logins not allowed" },
 
-		{ NULL      , NULL                      }
+		{ NULL      , NULL                          }
 	};
 
 	msgmap_t messages;
@@ -270,6 +278,7 @@ namespace state {
 	map<unsigned int,user *,uint_compar> users_by_id;
 	map<unsigned int,user *,uint_compar> users_by_fd;
 	map<const char *,user *,str_compar> users_by_username;
+	map<unsigned int,unsigned int,uint_compar> fd_by_id;
 
 	map<unsigned int,struct partial_login,uint_compar> partial_logins;
 }
@@ -310,6 +319,13 @@ int randomrange(int a, int b) {
 	return c + a;
 }
 
+struct node {
+	unsigned int id;
+	unsigned int distance;
+};
+
+typedef list<node> nodelist_t;
+
 class route : public map<unsigned int,set<unsigned int>,uint_compar> {
 	public:
 	private:
@@ -332,6 +348,7 @@ class user {
 		friendset_t friend_requests;
 		
 		route ospf;
+		nodelist_t nodes;
 
 		user() : id(state::next_user_id++), visible(true) {
 
@@ -759,6 +776,11 @@ void do_disconnect(int fd) {
 
 	option::debug && printf("disconnecting %d\n", fd);
 
+	if(state::users_by_fd.find(fd) != state::users_by_fd.end()) {
+		unsigned int user_id = state::users_by_fd[fd]->id;
+		state::fd_by_id.erase(user_id);
+	}
+
 	state::fdset.erase(fd);
 
 	delete state::recvstreams[fd];
@@ -871,6 +893,29 @@ void do_message(int fd, const char *msg_code) {
 	do_message(fd, msg_code, NULL);
 }
 
+void do_relay(int fd, const string& username, const char *command, unsigned int distance, const paramlist_t& params, const string& msg) {
+	DEBUG_MESSAGE;
+
+	char line[config::maxcmdsz];
+	string params_string("");
+
+	// join all the params together
+	for(paramlist_t::const_iterator p_itr = params.begin(); p_itr != params.end(); /* inc in body */) {
+		params_string += *p_itr;
+		if(++p_itr != params.end())
+			params_string += ' ';
+	}
+
+	// add msg if there is non-empty one
+
+	if(msg.empty()) {
+		snprintf(line, config::maxcmdsz, "%s %s %d %s\n", username.c_str(), command, distance, params_string.c_str());
+	} else {
+		snprintf(line, config::maxcmdsz, "%s %s %d %s :%s\n", username.c_str(), command, distance, params_string.c_str(), msg.c_str());
+	}
+
+	do_send(fd, line, strlen(line), 0);
+}
 
 bool is_valid_username(const string& username) {
 	DEBUG_MESSAGE;
@@ -921,6 +966,8 @@ bool is_valid_partial_login(int fd, const char *username, const char *password) 
 
 			user *new_user = state::users_by_fd[fd] = new user(pl.username, pl.password);
 
+			state::fd_by_id[new_user->id] = fd;
+
 			do_message(fd, MCCREATED, new_user->username);
 
 			if(option::debug) {
@@ -940,19 +987,34 @@ bool is_valid_partial_login(int fd, const char *username, const char *password) 
 			if(known_user->check_password(pl.password)) {
 
 				// login was good so validate by putting into fd->user map
+				// unless the user is already in the map, which in that case
+				// error no double logins
 
-				state::users_by_fd[fd] = known_user;
+				if(state::fd_by_id.find(known_user->id) == state::fd_by_id.end()) {
 
-				state::partial_logins.erase(fd);
+					state::users_by_fd[fd] = known_user;
 
-				return true;
+					state::fd_by_id[known_user->id] = fd;
+
+					state::partial_logins.erase(fd);
+
+					return true;
+
+				} else {
+
+					do_message(fd, MCNODUPES, known_user->username);
+
+					state::partial_logins.erase(fd);
+					do_message(fd, MCRESET);
+					
+					return false;
+				}
 
 			} else {
 				
 				// login was bad so reset the partial login state
 
 				state::partial_logins.erase(fd);
-
 				do_message(fd, MCRESET);
 
 				return false;
@@ -1081,17 +1143,27 @@ void do_command_set(int fd, const paramlist_t& params, const string& msg) {
 void do_send_ping(int from, int to, int distance, const paramlist_t& params, const string& msg) {
 	// FIXME: implement SEND PING
 }
+bool is_online(unsigned int user_id) {
+	return (state::fd_by_id.find(user_id) != state::fd_by_id.end());
+}
 void do_command_ping(int fd, const paramlist_t& params, const string& msg) {
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 
 		// FIXME: add params checks for PING
 
-		user *user = state::users_by_fd[fd];
+		if(params.size() != 0) { 
+			do_message(fd, MCPARAMS, CPING);
+		} else {
 
-		for(route::iterator ritr = user->ospf.begin(); ritr != user->ospf.end(); ritr++) {
-			// TODO: possibly check distance
-			do_send_ping(fd, *ritr, user->ospf.distance(*ritr), params, msg);
+			user *user = state::users_by_fd[fd];
+
+			for(nodelist_t::iterator ritr = user->nodes.begin(); ritr != user->nodes.end(); ritr++) {
+				// TODO: possibly check distance
+				// also, check if target is online
+				if(is_online(ritr->id))
+					do_send_ping(fd, state::fd_by_id[ritr->id], ritr->distance, params, msg);
+			}
 		}
 
 	} else {
@@ -1105,13 +1177,18 @@ void do_command_pong(int fd, const paramlist_t& params, const string& msg) {
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
 
-		// FIXME: add params checks for PONG
+		if(params.size() != 0) {
+			do_message(fd, MCPARAMS, CPONG);
+		} else {
 
-		user *user = state::users_by_fd[fd];
+			user *user = state::users_by_fd[fd];
 
-		for(route::iterator ritr = user->ospf.begin(); ritr != user->ospf.end(); ritr++) {
-			// TODO: possibly check distance
-			do_send_pong(fd, *ritr, user->ospf.distance(*ritr), params, msg);
+			for(nodelist_t::iterator ritr = user->nodes.begin(); ritr != user->nodes.end(); ritr++) {
+				// TODO: possibly check distance
+				// also, check if target is online
+				if(is_online(ritr->id))
+					do_send_pong(fd, ritr->id, ritr->distance, params, msg);
+			}
 		}
 
 	} else {
@@ -1119,16 +1196,58 @@ void do_command_pong(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
+
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
 	if(is_validated(fd)) {
-		do_message(fd, MCUNIMPL, CFRIEND);
-		// if user exists
-			// if self is friend_request of user
-				// add user to friends
-				// add self to friends of user
-				// remove self from friend_requests of user
-			// else
-				// add user to friend_requests
+
+		if(params.size() != 1) {
+
+			do_message(fd, MCPARAMS, CFRIEND);
+
+		} else if(state::users_by_username.find(params.begin()->c_str()) != state::users_by_username.end()) {
+
+			// if user exists, then check if a friend request exists in the opposite direction
+			// then decide if this represents a new friend request or a friend request approval
+
+			user *user1 = state::users_by_fd[fd];
+			user *user2 = state::users_by_username[params.begin()->c_str()];
+
+			if(user1->id == user2->id) {
+				do_message(fd, MCNOSELF, CFRIEND);
+			} else {
+
+				if(user2->friend_requests.find(user1->id) != user2->friend_requests.end()) {
+
+					// user is in the friend_request lists of target,
+					// so remove friend_request and then add as friends for both users
+					// notify users of friend
+
+					user2->friend_requests.erase(user1->id);
+					user1->friends.insert(user2->id);
+					user2->friends.insert(user1->id);
+
+					do_message(fd, MCFRIEND, user2->username);
+
+					if(is_online(user2->id)) {
+						do_message(state::fd_by_id[user2->id], MCRREQUEST, user1->username);
+						do_message(state::fd_by_id[user2->id], MCFRIEND, user1->username);
+					}
+
+				} else {
+					// add as friend request
+					// notify users of friend request
+
+					user1->friend_requests.insert(user2->id);
+
+					do_message(fd, MCREQUEST, user2->username);
+					if(is_online(user2->id))
+						do_message(state::fd_by_id[user2->id], MCRREQUEST, user1->username);
+				}
+			}
+		} else {
+			do_message(fd, MCUSERUNK, CFRIEND);
+		}
 	} else {
 		do_message(fd, MCLOGIN, CFRIEND);
 	}
@@ -1240,6 +1359,17 @@ void do_command_friends(int fd, const paramlist_t& params, const string& msg) {
 			do_message(fd, MCREQUEST, state::users_by_id[*request_itr]->username);
 
 		do_message(fd, MCEND, MCREQUEST);
+
+		// do reverse requests
+
+		do_message(fd, MCBEGIN, MCRREQUEST);
+
+		for(userlist_t::iterator user_itr = state::users.begin(); user_itr != state::users.end(); user_itr++)
+			for(friendset_t::iterator request_itr = (*user_itr)->friend_requests.begin(); request_itr != (*user_itr)->friend_requests.end(); request_itr++)
+				if(*request_itr == user->id)
+					do_message(fd, MCRREQUEST, (*user_itr)->username);
+
+		do_message(fd, MCEND, MCRREQUEST);
 
 	} else {
 		do_message(fd, MCLOGIN, CFRIENDS);
