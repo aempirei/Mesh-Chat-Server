@@ -1275,7 +1275,7 @@ void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
 				do_message(fd, MCNOSELF, CANTI);
 			} else {
 
-				// remove any friends or friend requests
+				// remove any friends or friend requests and notify users
 				
 				if(user1->friends.find(user2->id) != user1->friends.end()) {
 					user1->friends.erase(user2->id);
@@ -1299,14 +1299,6 @@ void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
 			do_message(fd, MCUSERUNK, CANTI);
 		}
 
-		// if user exists
-			// if user is a friend
-				// remove user from friends
-				// remove self from friends of user
-			// if user is a friend_request
-				// remove user from friend_requests
-			// else if self is a friend_request of user
-				// remove self from friend_requests of user
 	} else {
 		do_message(fd, MCLOGIN, CANTI);
 	}
@@ -1362,8 +1354,10 @@ void do_command_whois(int fd, const paramlist_t& params, const string& msg) {
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	do_message(fd, MCUNIMPL, CWHOIS);
 	// if user exists
-		// if user is visible
-			// do MCWHOIS
+		// if usr is self
+			// do MCWHOIS on self
+		// else if user is visible
+			// do MCWHOIS on params.being()
 }
 void do_command_scan(int fd, const paramlist_t& params, const string& msg) {
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
