@@ -183,6 +183,7 @@ namespace command {
 #define MCANTI     "063"
 #define MCDISTANCE "064"
 #define MCRREQUEST "065"
+#define MCRANTI    "066"
 
 #define MCBEGIN    "080"
 #define MCEND      "081"
@@ -222,6 +223,7 @@ namespace command {
 		{ MCANTI    , "anti"                        },
 		{ MCDISTANCE, "distance"                    },
 		{ MCRREQUEST, "request from"                },
+		{ MCRANTI   , "anti from"                   },
 
 		{ MCBEGIN   , "begin"                       },
 		{ MCEND     , "end"                         },
@@ -1142,6 +1144,7 @@ void do_command_set(int fd, const paramlist_t& params, const string& msg) {
 }
 void do_send_ping(int from, int to, int distance, const paramlist_t& params, const string& msg) {
 	// FIXME: implement SEND PING
+	do_message(from, MCUNIMPL, CPING);
 }
 bool is_online(unsigned int user_id) {
 	return (state::fd_by_id.find(user_id) != state::fd_by_id.end());
@@ -1172,6 +1175,7 @@ void do_command_ping(int fd, const paramlist_t& params, const string& msg) {
 }
 void do_send_pong(int from, int to, int distance, const paramlist_t& params, const string& msg) {
 	// FIXME: implement SEND PONG
+	do_message(from, MCUNIMPL, CPONG);
 }
 void do_command_pong(int fd, const paramlist_t& params, const string& msg) {
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
@@ -1253,9 +1257,48 @@ void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
+
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
 	if(is_validated(fd)) {
-		do_message(fd, MCUNIMPL, CANTI);
+
+		if(params.size() != 1) {
+
+			do_message(fd, MCPARAMS, CANTI);
+
+		} else if(state::users_by_username.find(params.begin()->c_str()) != state::users_by_username.end()) {
+
+			user *user1 = state::users_by_fd[fd];
+			user *user2 = state::users_by_username[params.begin()->c_str()];
+
+			if(user1->id == user2->id) {
+				do_message(fd, MCNOSELF, CANTI);
+			} else {
+
+				// remove any friends or friend requests
+				
+				if(user1->friends.find(user2->id) != user1->friends.end()) {
+					user1->friends.erase(user2->id);
+				} else if(user1->friend_requests.find(user2->id) != user1->friend_requests.end()) {
+					user1->friend_requests.erase(user2->id);
+				}
+
+				do_message(fd, MCANTI, user2->username);
+
+				if(user2->friends.find(user1->id) != user2->friends.end()) {
+					user2->friends.erase(user1->id);
+				} else if(user2->friend_requests.find(user1->id) != user2->friend_requests.end()) {
+					user2->friend_requests.erase(user1->id);
+				}
+
+				if(is_online(user2->id))
+					do_message(state::fd_by_id[user2->id], MCRANTI, user1->username);
+			}
+
+		} else {
+			do_message(fd, MCUSERUNK, CANTI);
+		}
+
 		// if user exists
 			// if user is a friend
 				// remove user from friends
