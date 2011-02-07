@@ -330,6 +330,7 @@ class user {
 
 		friendset_t friends;
 		friendset_t friend_requests;
+		
 		route ospf;
 
 		user() : id(state::next_user_id++), visible(true) {
@@ -1077,21 +1078,42 @@ void do_command_set(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CSET);
 	}
 }
+void do_send_ping(int from, int to, int distance, const paramlist_t& params, const string& msg) {
+	// FIXME: implement SEND PING
+}
 void do_command_ping(int fd, const paramlist_t& params, const string& msg) {
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
-		do_message(fd, MCUNIMPL, CPING);
-		// if ping ok
-			// ping route CPING
+
+		// FIXME: add params checks for PING
+
+		user *user = state::users_by_fd[fd];
+
+		for(route::iterator ritr = user->ospf.begin(); ritr != user->ospf.end(); ritr++) {
+			// TODO: possibly check distance
+			do_send_ping(fd, *ritr, user->ospf.distance(*ritr), params, msg);
+		}
+
 	} else {
 		do_message(fd, MCLOGIN, CPING);
 	}
 }
+void do_send_pong(int from, int to, int distance, const paramlist_t& params, const string& msg) {
+	// FIXME: implement SEND PONG
+}
 void do_command_pong(int fd, const paramlist_t& params, const string& msg) {
 	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 	if(is_validated(fd)) {
-		do_message(fd, MCUNIMPL, CPONG);
-		// pong reply CPONG
+
+		// FIXME: add params checks for PONG
+
+		user *user = state::users_by_fd[fd];
+
+		for(route::iterator ritr = user->ospf.begin(); ritr != user->ospf.end(); ritr++) {
+			// TODO: possibly check distance
+			do_send_pong(fd, *ritr, user->ospf.distance(*ritr), params, msg);
+		}
+
 	} else {
 		do_message(fd, MCLOGIN, CPONG);
 	}
