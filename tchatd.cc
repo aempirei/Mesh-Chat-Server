@@ -24,12 +24,13 @@
 #include <arpa/inet.h>
 #include <syslog.h>
 #include <errno.h>
-
+#include <stdarg.h>
 
 #define PROGRAM "Topology Chat Server"
 #define VERSION "1.0"
-#define DEBUG_MESSAGE		DEBUG_MESSAGE2(__FUNCTION__)
-#define DEBUG_MESSAGE2(a)	(option::debug && puts(a))
+#define DEBUG_MESSAGE     DEBUG_MESSAGE2(__FUNCTION__)
+#define DEBUG_MESSAGE2(a) option::debug && puts(a)
+#define DEBUG_PRINTF      option::debug && printf
 
 using namespace std;
 
@@ -40,6 +41,8 @@ void do_load_friends();
 void do_load_routes();
 void do_load_sockets();
 void do_send(int fd, const void *buf, size_t len, int flags);
+void do_vmessage(int fd, const char *msg_code, const char *fmt, ...);
+void do_message(int fd, const char *msg_code, const string& msg_string);
 void do_message(int fd, const char *msg_code, const char *msg);
 void do_message(int fd, const char *msg_code);
 void do_load();
@@ -56,6 +59,8 @@ void do_save();
 void do_cleanup_sockets();
 void do_cleanup_temp();
 void do_cleanup();
+
+bool is_online(unsigned int user_id);
 
 void handle_error(const char *str);
 
@@ -99,13 +104,11 @@ typedef map<const char *,const char *, strcase_compar> msgmap_t;
 command_fn_t do_command_anti;
 command_fn_t do_command_friend;
 command_fn_t do_command_friends;
-command_fn_t do_command_listen;
 command_fn_t do_command_user;
 command_fn_t do_command_pass;
 command_fn_t do_command_ping;
 command_fn_t do_command_pong;
 command_fn_t do_command_quit;
-command_fn_t do_command_radio;
 command_fn_t do_command_say;
 command_fn_t do_command_scan;
 command_fn_t do_command_set;
@@ -130,10 +133,8 @@ namespace command {
 #define CPONG    "pong"
 #define CFRIEND  "friend"
 #define CANTI    "anti"
-#define CLISTEN  "listen"
 #define CSAY     "say"
 #define CVECTOR  "vector"
-#define CRADIO   "radio"
 #define CWHISPER "whisper"
 #define CTELL    "tell"
 #define CWHOIS   "whois"
@@ -148,10 +149,8 @@ namespace command {
 		{ CPONG   , do_command_pong    }, // PONG :response
 		{ CFRIEND , do_command_friend  }, // FRIEND username
 		{ CANTI   , do_command_anti    }, // ANTI username
-		{ CLISTEN , do_command_listen  }, // LISTEN channel
 		{ CSAY    , do_command_say     }, // SAY :message
 		{ CVECTOR , do_command_vector  }, // VECTOR username :message
-		{ CRADIO  , do_command_radio   }, // RADIO channel :message
 		{ CWHISPER, do_command_whisper }, // WHISPER :message
 		{ CTELL   , do_command_tell    }, // TELL username :message
 		{ CWHOIS  , do_command_whois   }, // WHOIS username
@@ -184,6 +183,7 @@ namespace command {
 #define MCDISTANCE "064"
 #define MCRREQUEST "065"
 #define MCRANTI    "066"
+#define MCWHOIS    "067"
 
 #define MCBEGIN    "080"
 #define MCEND      "081"
@@ -199,6 +199,7 @@ namespace command {
 #define MCUSERUNK  "106"
 #define MCNOSELF   "107"
 #define MCNODUPES  "108"
+#define MCUSEROFF  "109"
 
 // rate limit messages
 
@@ -224,6 +225,7 @@ namespace command {
 		{ MCDISTANCE, "distance"                    },
 		{ MCRREQUEST, "request from"                },
 		{ MCRANTI   , "anti from"                   },
+		{ MCWHOIS   , "whois"                       },
 
 		{ MCBEGIN   , "begin"                       },
 		{ MCEND     , "end"                         },
@@ -245,6 +247,7 @@ namespace command {
 		{ MCUSERINV , "username invalid"            },
 		{ MCUSERUNK , "unknown user"                },
 		{ MCNOSELF  , "cannot target self"          },
+		{ MCUSEROFF , "user offline"                },
 
 		{ MCUSER    , "username unavailable"        },
 		{ MCPASS    , "incorrect password"          },
@@ -341,10 +344,11 @@ class user {
 		string pwhash;
 		string salt;
 
+		unsigned int actions;
 		bool visible;
 
-		double action_rate;
-		struct timeval last_action;
+		time_t last_action_at;
+		time_t created_at;
 
 		friendset_t friends;
 		friendset_t friend_requests;
@@ -352,13 +356,17 @@ class user {
 		route ospf;
 		nodelist_t nodes;
 
-		user() : id(state::next_user_id++), visible(true) {
+		user() : id(state::next_user_id++), actions(1), visible(true) {
+
+			last_action_at = created_at = time(NULL);
 
 			state::users.push_back(this);
 			state::users_by_id[id] = this;
 		}
 
-		user(const string& new_username) : id(state::next_user_id++), visible(true) {
+		user(const string& new_username) : id(state::next_user_id++), actions(1), visible(true) {
+
+			last_action_at = created_at = time(NULL);
 
 			state::users.push_back(this);
 			state::users_by_id[id] = this;
@@ -366,7 +374,9 @@ class user {
 			set_username(new_username);
 		}
 
-		user(const string& new_username, const string& new_password) : id(state::next_user_id++), visible(true) {
+		user(const string& new_username, const string& new_password) : id(state::next_user_id++), actions(1), visible(true) {
+
+			last_action_at = created_at = time(NULL);
 
 			state::users.push_back(this);
 			state::users_by_id[id] = this;
@@ -420,6 +430,40 @@ class user {
 			pwhash = crypt(new_password.c_str(), salt.c_str());
 
 			return true;
+		}
+
+		void tick() {
+			actions++;
+			last_action_at = time(NULL);
+		}
+
+		long idle() {
+			return time(NULL) - last_action_at;
+		}
+
+		long age() {
+			return time(NULL) - created_at;
+		}
+
+		double rate() {
+			long dt = age();
+			return (double)actions / (dt ? dt : 1);
+		}
+
+		bool is_online() {
+			return ::is_online(id);
+		}
+
+		bool has_friend(const user *user) {
+			return has_friend(user->id);
+		}
+
+		bool has_friend(unsigned int id) {
+			return(friends.find(id) != friends.end());
+		}
+
+		int fd() {
+			return is_online() ? state::fd_by_id[id] : -1;
 		}
 
 	private:
@@ -489,9 +533,9 @@ void usage(const char *prog) {
 
 void do_options(int argc, char **argv) {
 
-	int opt;
-
 	DEBUG_MESSAGE;
+
+	int opt;
 
 	while ((opt = getopt(argc, argv, "vVDhP:T:A:B:c:n:M:S:")) != -1) {
 
@@ -588,11 +632,11 @@ void handle_error(const char *str) {
 
 void do_config() {
 
+	DEBUG_MESSAGE;
+
 	const int width = 20;
 
 	char str[80];
-
-	DEBUG_MESSAGE;
 
 	srandom(getpid() + time(NULL));
 
@@ -649,9 +693,9 @@ void do_load_routes() {
 
 void do_load_sockets() {
 
-	struct sockaddr_in sin;
-
 	DEBUG_MESSAGE;
+
+	struct sockaddr_in sin;
 
 	// open socket
 
@@ -758,9 +802,9 @@ void do_work() {
 
 void do_connect() {
 
-	struct sockaddr_in sin;
-
 	DEBUG_MESSAGE;
+
+	struct sockaddr_in sin;
 
 	socklen_t sl = sizeof(sin);
 
@@ -776,7 +820,7 @@ void do_connect() {
 
 void do_disconnect(int fd) {
 
-	option::debug && printf("disconnecting %d\n", fd);
+	DEBUG_PRINTF("disconnecting %d\n", fd);
 
 	if(state::users_by_fd.find(fd) != state::users_by_fd.end()) {
 		unsigned int user_id = state::users_by_fd[fd]->id;
@@ -815,7 +859,7 @@ void do_read(int fd) {
 	static char buf[4096];
 	int n;
 
-	option::debug && printf("reading up to %ld bytes from %d\n", (long)sizeof(buf), fd);
+	DEBUG_PRINTF("reading up to %ld bytes from %d\n", (long)sizeof(buf), fd);
 
 	do {
 		n = recv(fd, (void *)buf, sizeof(buf), 0);
@@ -835,7 +879,7 @@ void do_read(int fd) {
 
 		default:
 
-			option::debug && printf("read %d bytes from %d\n", n, fd);
+			DEBUG_PRINTF("read %d bytes from %d\n", n, fd);
 
 			state::recvstreams[fd]->write(buf, n);
 
@@ -844,6 +888,8 @@ void do_read(int fd) {
 }
 
 void do_send(int fd, const void *buf, size_t len, int flags) {
+
+    DEBUG_MESSAGE;
 
 	size_t left = len;
 	size_t done = 0;
@@ -895,7 +941,27 @@ void do_message(int fd, const char *msg_code) {
 	do_message(fd, msg_code, NULL);
 }
 
+void do_vmessage(int fd, const char *msg_code, const char *fmt, ...) {
+
+	char msg_str[config::maxcmdsz];
+	va_list ap;
+
+	va_start(ap,fmt);
+	vsnprintf(msg_str, config::maxcmdsz, fmt, ap);
+	va_end(ap);
+
+	do_message(fd, msg_code, msg_str);
+}
+
+// fd       -- target fd
+// username -- source username
+// command  -- issued command
+// distance -- distance to target from source
+// params   -- any parameters
+// msg      -- possible message
+
 void do_relay(int fd, const string& username, const char *command, unsigned int distance, const paramlist_t& params, const string& msg) {
+
 	DEBUG_MESSAGE;
 
 	char line[config::maxcmdsz];
@@ -911,16 +977,18 @@ void do_relay(int fd, const string& username, const char *command, unsigned int 
 	// add msg if there is non-empty one
 
 	if(msg.empty()) {
-		snprintf(line, config::maxcmdsz, "%s %s %d %s\n", username.c_str(), command, distance, params_string.c_str());
+		snprintf(line, config::maxcmdsz, "@ %s %d %s %s\n", username.c_str(), distance, command, params_string.c_str());
 	} else {
-		snprintf(line, config::maxcmdsz, "%s %s %d %s :%s\n", username.c_str(), command, distance, params_string.c_str(), msg.c_str());
+		snprintf(line, config::maxcmdsz, "@ %s %d %s %s :%s\n", username.c_str(), distance, command, params_string.c_str(), msg.c_str());
 	}
 
 	do_send(fd, line, strlen(line), 0);
 }
 
 bool is_valid_username(const string& username) {
+
 	DEBUG_MESSAGE;
+
 	if(username.length() > 0 && username.length() <= config::maxusersz) {
 		for(unsigned int i = 0; i < username.length(); i++)
 			if(!isalnum(username[i]))
@@ -931,8 +999,17 @@ bool is_valid_username(const string& username) {
 }
 
 bool is_validated(int fd) {
+
 	DEBUG_MESSAGE;
+
 	return (state::users_by_fd.find(fd) != state::users_by_fd.end());
+}
+
+bool is_online(unsigned int id) {
+
+	DEBUG_MESSAGE;
+
+	return (state::fd_by_id.find(id) != state::fd_by_id.end());
 }
 
 bool is_valid_partial_login(int fd, const char *username, const char *password) {
@@ -1030,13 +1107,17 @@ bool is_valid_partial_login(int fd, const char *username, const char *password) 
 }
 
 void do_login(int fd) {
+
+	DEBUG_MESSAGE;
+
 	do_message(fd, MCVERIFIED, state::users_by_fd[fd]->username);
 	do_message(fd, MCMOTD, config::motd);
 	do_message(fd, MCNAME, config::servername);
 }
 
 void do_command_user(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+	
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	if((long)params.size() == 0) {
 
@@ -1047,7 +1128,7 @@ void do_command_user(int fd, const paramlist_t& params, const string& msg) {
 		// do a username change
 
 		user *user = state::users_by_fd[fd];
-		const string& username = *params.begin();
+		const string& username = params.front();
 
 		if(is_valid_username(username)) {
 
@@ -1069,7 +1150,7 @@ void do_command_user(int fd, const paramlist_t& params, const string& msg) {
 			do_message(fd, MCUSERINV);
 		}
 
-	} else if(is_valid_partial_login(fd, params.begin()->c_str(), NULL)) {
+	} else if(is_valid_partial_login(fd, params.front().c_str(), NULL)) {
 
 		// do a login or new user creation
 
@@ -1091,7 +1172,8 @@ void do_command_user(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_pass(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+	
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	if((long)params.size() == 0) {
 
@@ -1102,13 +1184,13 @@ void do_command_pass(int fd, const paramlist_t& params, const string& msg) {
 		// do pass change
 
 		user *user = state::users_by_fd[fd];
-		const string& password = *params.begin();
+		const string& password = params.front();
 
 		user->set_password(password);
 
 		do_message(fd, MCNEWPASS);
 
-	} else if(is_valid_partial_login(fd, NULL, params.begin()->c_str())) {
+	} else if(is_valid_partial_login(fd, NULL, params.front().c_str())) {
 
 		if(is_validated(fd)) {
 
@@ -1130,7 +1212,9 @@ void do_command_pass(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_set(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CSET);
 		// if VAR ok
@@ -1142,66 +1226,44 @@ void do_command_set(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CSET);
 	}
 }
-void do_send_ping(int from, int to, int distance, const paramlist_t& params, const string& msg) {
-	// FIXME: implement SEND PING
-	do_message(from, MCUNIMPL, CPING);
-}
-bool is_online(unsigned int user_id) {
-	return (state::fd_by_id.find(user_id) != state::fd_by_id.end());
-}
-void do_command_ping(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+void do_simple_cmd(const char *cmd, int fd, const paramlist_t& params, const string& msg) {
+
 	if(is_validated(fd)) {
 
-		// FIXME: add params checks for PING
+		// no params allowed
 
 		if(params.size() != 0) { 
-			do_message(fd, MCPARAMS, CPING);
+			do_message(fd, MCPARAMS, cmd);
 		} else {
 
 			user *user = state::users_by_fd[fd];
 
-			for(nodelist_t::iterator ritr = user->nodes.begin(); ritr != user->nodes.end(); ritr++) {
-				// TODO: possibly check distance
-				// also, check if target is online
-				if(is_online(ritr->id))
-					do_send_ping(fd, state::fd_by_id[ritr->id], ritr->distance, params, msg);
-			}
+			// just walk the tree and relay to online users
+
+			for(nodelist_t::iterator ritr = user->nodes.begin(); ritr != user->nodes.end(); ritr++) 
+				if(is_online(ritr->id)) 
+					do_relay(state::fd_by_id[ritr->id], user->username, cmd, ritr->distance, params, msg);
 		}
 
 	} else {
-		do_message(fd, MCLOGIN, CPING);
+		do_message(fd, MCLOGIN, cmd);
 	}
 }
-void do_send_pong(int from, int to, int distance, const paramlist_t& params, const string& msg) {
-	// FIXME: implement SEND PONG
-	do_message(from, MCUNIMPL, CPONG);
+void do_command_ping(int fd, const paramlist_t& params, const string& msg) {
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	do_simple_cmd(CPING, fd, params, msg);
 }
 void do_command_pong(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
-	if(is_validated(fd)) {
 
-		if(params.size() != 0) {
-			do_message(fd, MCPARAMS, CPONG);
-		} else {
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
-			user *user = state::users_by_fd[fd];
-
-			for(nodelist_t::iterator ritr = user->nodes.begin(); ritr != user->nodes.end(); ritr++) {
-				// TODO: possibly check distance
-				// also, check if target is online
-				if(is_online(ritr->id))
-					do_send_pong(fd, ritr->id, ritr->distance, params, msg);
-			}
-		}
-
-	} else {
-		do_message(fd, MCLOGIN, CPONG);
-	}
+	do_simple_cmd(CPONG, fd, params, msg);
 }
 void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
 
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	if(is_validated(fd)) {
 
@@ -1209,13 +1271,13 @@ void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
 
 			do_message(fd, MCPARAMS, CFRIEND);
 
-		} else if(state::users_by_username.find(params.begin()->c_str()) != state::users_by_username.end()) {
+		} else if(state::users_by_username.find(params.front().c_str()) != state::users_by_username.end()) {
 
 			// if user exists, then check if a friend request exists in the opposite direction
 			// then decide if this represents a new friend request or a friend request approval
 
 			user *user1 = state::users_by_fd[fd];
-			user *user2 = state::users_by_username[params.begin()->c_str()];
+			user *user2 = state::users_by_username[params.front().c_str()];
 
 			if(user1->id == user2->id) {
 				do_message(fd, MCNOSELF, CFRIEND);
@@ -1258,7 +1320,7 @@ void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
 }
 void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
 
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	if(is_validated(fd)) {
 
@@ -1266,10 +1328,10 @@ void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
 
 			do_message(fd, MCPARAMS, CANTI);
 
-		} else if(state::users_by_username.find(params.begin()->c_str()) != state::users_by_username.end()) {
+		} else if(state::users_by_username.find(params.front().c_str()) != state::users_by_username.end()) {
 
 			user *user1 = state::users_by_fd[fd];
-			user *user2 = state::users_by_username[params.begin()->c_str()];
+			user *user2 = state::users_by_username[params.front().c_str()];
 
 			if(user1->id == user2->id) {
 				do_message(fd, MCNOSELF, CANTI);
@@ -1303,22 +1365,16 @@ void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CANTI);
 	}
 }
-void do_command_listen(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
-	do_message(fd, MCUNIMPL, CLISTEN);
-	// listen CLISTEN
-}
 void do_command_say(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
-	if(is_validated(fd)) {
-		do_message(fd, MCUNIMPL, CSAY);
-		// say route CSAY
-	} else {
-		do_message(fd, MCLOGIN, CSAY);
-	}
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	do_simple_cmd(CSAY, fd, params, msg);
 }
 void do_command_vector(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CVECTOR);
 		// vector route CVECTOR
@@ -1326,13 +1382,10 @@ void do_command_vector(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CVECTOR);
 	}
 }
-void do_command_radio(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
-	do_message(fd, MCUNIMPL, CRADIO);
-	// relay CRADIO
-}
 void do_command_whisper(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
 	if(is_validated(fd)) {
 		do_message(fd, MCUNIMPL, CWHISPER);
 		// whisper route CWHISPER
@@ -1341,39 +1394,121 @@ void do_command_whisper(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_tell(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
 	if(is_validated(fd)) {
-		do_message(fd, MCUNIMPL, CTELL);
-		// if user exists
-			// relay CTELL
+
+		// TELL username :message
+
+		if(params.size() != 1) { 
+
+			do_message(fd, MCPARAMS, CTELL);
+
+		} else if(state::users_by_username.find(params.front().c_str()) != state::users_by_username.end()) {
+
+			user *user1 = state::users_by_fd[fd];
+			user *user2 = state::users_by_username[params.front().c_str()];
+
+			if(is_online(user2->id)) {
+
+				// if user is online then go ahead and relay the CTELL and set the distance to 1
+				do_relay(state::fd_by_id[user2->id], user1->username, CTELL, 1, params, msg);
+
+			} else {
+				do_message(fd, MCUSEROFF, CTELL);
+			}
+
+		} else {
+			do_message(fd, MCUSERUNK, CTELL);
+		}
+
 	} else {
 		do_message(fd, MCLOGIN, CTELL);
 	}
 }
 void do_command_whois(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
-	do_message(fd, MCUNIMPL, CWHOIS);
-	// if user exists
-		// if usr is self
-			// do MCWHOIS on self
-		// else if user is visible
-			// do MCWHOIS on params.being()
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	if(is_validated(fd)) {
+
+		user *user1 = state::users_by_fd[fd];
+
+		if(params.size() < 2) { 
+
+			user *user2 = NULL;
+
+			// if theres no parameters then this is a self WHOIS, otherwise its a normal WHOIS, so check if the user exists
+
+			if(params.size() == 0 && is_validated(fd)) {
+
+				user2 = user1;
+
+			} else if(state::users_by_username.find(params.front().c_str()) != state::users_by_username.end()) {
+
+				user2 = state::users_by_username[params.front().c_str()];
+			}
+
+			if(user2 != NULL) {
+
+				do_message(fd, MCBEGIN, MCWHOIS);
+
+				do_vmessage(fd, MCWHOIS, "username %s", user2->username.c_str());
+
+				// if the user is invisible then dont show details
+
+				if(user2->visible) {
+					do_message(fd, MCWHOIS, "visible true");
+					do_vmessage(fd, MCWHOIS, "online %s", user2->is_online() ? "true" : "false");
+					do_vmessage(fd, MCWHOIS, "idle %lds", user2->idle());
+					do_vmessage(fd, MCWHOIS, "age %lds", user2->age());
+				} else {
+					do_message(fd, MCWHOIS, "visible false");
+				}
+
+				do_message(fd, MCEND, MCWHOIS);
+
+				// let the target user know they got whois'd
+
+				if(user2->is_online())
+					do_relay(user2->fd(), user1->username, CWHOIS, 1, params, msg);
+
+			} else {
+				do_message(fd, MCUSERUNK, CWHOIS);
+			}
+		} else {
+			do_message(fd, MCPARAMS, CWHOIS);
+		}
+	} else {
+		do_message(fd, MCLOGIN, CWHOIS);
+	}
 }
 void do_command_scan(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
 	if(is_validated(fd)) {
-		do_message(fd, MCUNIMPL, CSCAN);
-		// for each distance
-			// for each friend at distance
-				// if friend is visible
-					// do MCDISTANCE
+
+		user *user1 = state::users_by_fd[fd];
+
+		do_message(fd, MCBEGIN, MCDISTANCE);
+
+		for(nodelist_t::iterator ritr = user1->nodes.begin(); ritr != user1->nodes.end(); ritr++) {
+			user *user2 = state::users_by_id[ritr->id];
+			if(user2->visible)
+				do_vmessage(fd, MCDISTANCE, "%d %s", ritr->distance, user2->username.c_str());
+		}
+
+		do_message(fd, MCEND, MCDISTANCE);
+
 	} else {
 		do_message(fd, MCLOGIN, CSCAN);
 	}
 }
 void do_command_friends(int fd, const paramlist_t& params, const string& msg) {
 
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	if(is_validated(fd)) {
 
@@ -1413,25 +1548,29 @@ void do_command_friends(int fd, const paramlist_t& params, const string& msg) {
 	}
 }
 void do_command_quit(int fd, const paramlist_t& params, const string& msg) {
-	option::debug && printf("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
 	do_message(fd, MCGOODBYE);
 	do_disconnect(fd);
 }
 
 void do_unknown_command(int fd, const string& command, const paramlist_t& params, const string& msg) {
-	option::debug && printf("*** %s ( %d %s [ %ld ] %s )\n", __FUNCTION__, fd, command.c_str(), (long)params.size(), msg.c_str());
+
+	DEBUG_PRINTF("*** %s ( %d %s [ %ld ] %s )\n", __FUNCTION__, fd, command.c_str(), (long)params.size(), msg.c_str());
+
 	do_message(fd, MCCMD, command.c_str());
 }
 
 void do_handle_line(int fd, const char *line) {
+
+	DEBUG_PRINTF("processing line for %d : %s\n", fd, line);
 
 	stringstream ss(line, stringstream::in | stringstream::out);
 
 	string command;
 	list<string> params;
 	string msg;
-
-	option::debug && printf("processing line for %d : %s\n", fd, line);
 
 	// a command line is a newline (0x10 '\n') terminated string of the form:
 	// COMMAND PARAMS* (:MESSAGE)?
@@ -1461,19 +1600,23 @@ void do_handle_line(int fd, const char *line) {
 
 	commandmap_t::iterator command_itr = command::calls.find(command.c_str());
 
-	if(command_itr == command::calls.end())
+	if(command_itr == command::calls.end()) {
 		do_unknown_command(fd,command,params,msg);
-	else
+	} else {
+		// if the command is legit, then tick the user if they are validated
+		if(is_validated(fd))
+			state::users_by_fd[fd]->tick();
 		(command_itr->second)(fd,params,msg);
+	}
 }
 
 void do_handle_input(int fd) {
 
+	DEBUG_MESSAGE;
+
 	char line[config::maxcmdsz];
 	stringstream *ss = state::recvstreams[fd];
 	stringbuf sb;
-
-	DEBUG_MESSAGE;
 
 	while(!ss->eof()) {
 
@@ -1525,14 +1668,17 @@ void do_handle_input(int fd) {
 
 void do_save_users() {
 	DEBUG_MESSAGE;
+	// FIXME: add save users
 }
 
 void do_save_friends() {
 	DEBUG_MESSAGE;
+	// FIXME: add save friends
 }
 
 void do_save_routes() {
 	DEBUG_MESSAGE;
+	// FIXME: add save routes
 }
 
 void do_save() {
@@ -1564,7 +1710,9 @@ void do_cleanup_temp() {
 }
 
 void do_cleanup() {
+
 	DEBUG_MESSAGE;
+
 	do_cleanup_sockets();
 	do_cleanup_temp();
 }
