@@ -61,33 +61,17 @@ void do_cleanup_sockets();
 void do_cleanup_temp();
 void do_cleanup();
 
+void do_test();
+
 bool is_online(unsigned int user_id);
 
 void handle_error(const char *str);
 
 void sighandler(int);
 
-struct str_compar {
-	bool operator()(const char * str1, const char *str2) {
-		return strcmp(str1, str2) < 0;
-	}
-};
-
 struct strcase_compar {
 	bool operator()(const char * str1, const char *str2) {
 		return strcasecmp(str1, str2) < 0;
-	}
-};
-
-struct uint_compar {
-	bool operator()(const unsigned int uint1, const unsigned int uint2) {
-		return uint1 < uint2;
-	}
-};
-
-struct int_compar {
-	bool operator()(const int uint1, const int uint2) {
-		return uint1 < uint2;
 	}
 };
 
@@ -97,10 +81,7 @@ typedef set<int> fdset_t;
 typedef list<user *> userlist_t;
 typedef list<string> paramlist_t;
 typedef set<unsigned int> friendset_t;
-
 typedef pair<unsigned int, unsigned int> edge_t;
-
-typedef set<edge_t> edgeset_t;
 
 typedef void command_fn_t(int fd, const paramlist_t& params, const string& msg);
 typedef map<const char *, command_fn_t *, strcase_compar> commandmap_t;
@@ -279,18 +260,18 @@ namespace state {
 
 	fdset_t fdset;
 
-	map<int,stringstream *,int_compar> recvstreams;
+	map<int,stringstream *> recvstreams;
 
 	unsigned int next_user_id = 1;
 
 	userlist_t users;
 
-	map<unsigned int,user *,uint_compar> users_by_id;
-	map<unsigned int,user *,uint_compar> users_by_fd;
-	map<const char *,user *,str_compar> users_by_username;
-	map<unsigned int,int,uint_compar> fd_by_id;
+	map<unsigned int,user *> users_by_id;
+	map<unsigned int,user *> users_by_fd;
+	map<const char *,user *> users_by_username;
+	map<unsigned int,int> fd_by_id;
 
-	map<unsigned int,struct partial_login,uint_compar> partial_logins;
+	map<unsigned int,struct partial_login> partial_logins;
 }
 
 namespace status {
@@ -302,6 +283,7 @@ namespace option {
 
 	bool verbose = false;
 	bool debug = false;
+	bool test = false;
 }
 
 namespace config {
@@ -338,7 +320,6 @@ class node {
 
 		explicit node(unsigned int id, unsigned int distance) : id(id), distance(distance) {
 		}
-
 		user *get_user() {
 			return state::users_by_id[id];
 		}
@@ -379,25 +360,27 @@ class user {
 		friendset_t friends;
 		friendset_t friend_requests;
 
-		user() : id(state::next_user_id++), actions(1), visible(true) {
-
-			last_action_at = created_at = time(NULL);
-
-			state::users.push_back(this);
-			state::users_by_id[id] = this;
+		bool operator==(const user& ruser) {
+			return (id == ruser.id);
 		}
 
-		user(const string& new_username) : id(state::next_user_id++), actions(1), visible(true) {
-
-			last_action_at = created_at = time(NULL);
-
-			state::users.push_back(this);
-			state::users_by_id[id] = this;
-
-			set_username(new_username);
+		bool operator!=(const user& ruser) {
+			return (id != ruser.id);
 		}
 
-		user(const string& new_username, const string& new_password) : id(state::next_user_id++), actions(1), visible(true) {
+		bool operator=(const user& user) {
+			throw runtime_error("user objects should never be assigned");
+		}
+
+		explicit user(const user& user) {
+			throw runtime_error("user objects should never be copied");
+		}
+
+		// a user object should never be constructed by another constructor,
+		// and should never be created via the copy constructor and never
+		// get assigned via the assignment operator
+
+		explicit user(const string& new_username, const string& new_password) : id(state::next_user_id++), actions(1), visible(true) {
 
 			last_action_at = created_at = time(NULL);
 
@@ -490,10 +473,55 @@ class user {
 		}
 
 		nodelist_t& get_nodes() {
+
+			nodelist_t todo;
+			friendset_t visited;
+
+			todo.push_back(node(id,0));
+
+			nodes.clear();
+
+			span_nodes(todo, visited);
+
 			return nodes;
 		}
 
 	private:
+
+		void visit(node& current, nodelist_t& todo, friendset_t& visited) {
+
+			// if this current node is not in the visited set then visit it
+
+			if(visited.find(current.id) == visited.end()) {
+
+				// mark this node as visited
+
+				visited.insert(current.id);
+
+				nodes.push_back(current);
+
+				// push all the unvisited neighbors
+				// onto the back of the todo list
+				// with an adjusted distance
+
+				user *user = state::users_by_id[current.id];
+
+				for(friendset_t::iterator fitr = user->friends.begin(); fitr != user->friends.end(); fitr++)
+					if(visited.find(*fitr) == visited.end())
+						todo.push_back(node(*fitr, current.distance + 1));
+			}
+		}
+
+		void span_nodes(nodelist_t& todo, friendset_t& visited) {
+
+			// while the todo list is not empty
+			// process it as first-in first-out
+
+			while(!todo.empty()) {
+				visit(todo.front(), todo, visited);
+				todo.pop_front();
+			}
+		}
 };
 
 int main(int argc, char **argv) {
@@ -520,6 +548,11 @@ int main(int argc, char **argv) {
 	// load state
 
 	do_load();
+
+	// test if option is set
+
+	if(option::test)
+		do_test();
 
 	// start main event loop
 
@@ -555,6 +588,7 @@ void usage(const char *prog) {
 	printf("\t%-*s%s\n", width, "-v", "verbose");
 	printf("\t%-*s%s\n", width, "-V", "version");
 	printf("\t%-*s%s\n", width, "-D", "debug mode");
+	printf("\t%-*s%s\n", width, "-@", "test mode");
 	printf("\t%-*s%s\n\n", width, "-h", "help");
 }
 
@@ -564,7 +598,7 @@ void do_options(int argc, char **argv) {
 
 	int opt;
 
-	while ((opt = getopt(argc, argv, "vVDhP:T:A:B:c:n:M:S:")) != -1) {
+	while ((opt = getopt(argc, argv, "vVD@hP:T:A:B:c:n:M:S:")) != -1) {
 
 		switch (opt) {
 
@@ -626,6 +660,11 @@ void do_options(int argc, char **argv) {
 				option::debug = true;
 				break;
 
+			case '@':
+
+				option::test = true;
+				break;
+
 			case 'h':
 			case '?':
 
@@ -661,7 +700,7 @@ void do_config() {
 
 	DEBUG_MESSAGE;
 
-	const int width = 20;
+	const int width = 25;
 
 	char str[80];
 
@@ -1746,4 +1785,39 @@ void do_cleanup() {
 
 	do_cleanup_sockets();
 	do_cleanup_temp();
+}
+
+void do_test() {
+
+	user *u1 = new user("user1","pass");
+	user *u2 = new user("user2","pass");
+	user *u3 = new user("user3","pass");
+	user *u4 = new user("user4","pass");
+	user *u5 = new user("user5","pass");
+	user *u6 = new user("user6","pass");
+
+	u1->friends.insert(u2->id);
+	u2->friends.insert(u1->id);
+
+	u1->friends.insert(u3->id);
+	u3->friends.insert(u1->id);
+
+	u2->friends.insert(u4->id);
+	u4->friends.insert(u2->id);
+
+	u3->friends.insert(u4->id);
+	u4->friends.insert(u3->id);
+
+	u4->friends.insert(u5->id);
+	u5->friends.insert(u4->id);
+
+	u5->friends.insert(u6->id);
+	u6->friends.insert(u5->id);
+
+	nodelist_t nl = u1->get_nodes();
+
+	for(nodelist_t::iterator itr = nl.begin(); itr != nl.end(); itr++)
+		printf("id = %d -- distance = %d\n", itr->id, itr->distance);
+
+	exit(EXIT_SUCCESS);
 }
