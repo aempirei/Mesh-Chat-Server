@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 #include "tchatd.hh"
 
@@ -96,6 +97,10 @@ typedef set<int> fdset_t;
 typedef list<user *> userlist_t;
 typedef list<string> paramlist_t;
 typedef set<unsigned int> friendset_t;
+
+typedef pair<unsigned int, unsigned int> edge_t;
+
+typedef set<edge_t> edgeset_t;
 
 typedef void command_fn_t(int fd, const paramlist_t& params, const string& msg);
 typedef map<const char *, command_fn_t *, strcase_compar> commandmap_t;
@@ -283,7 +288,7 @@ namespace state {
 	map<unsigned int,user *,uint_compar> users_by_id;
 	map<unsigned int,user *,uint_compar> users_by_fd;
 	map<const char *,user *,str_compar> users_by_username;
-	map<unsigned int,unsigned int,uint_compar> fd_by_id;
+	map<unsigned int,int,uint_compar> fd_by_id;
 
 	map<unsigned int,struct partial_login,uint_compar> partial_logins;
 }
@@ -324,25 +329,40 @@ int randomrange(int a, int b) {
 	return c + a;
 }
 
-struct node {
-	unsigned int id;
-	unsigned int distance;
-	user *get_user() {
-		return state::users_by_id[id];
-	}
-	unsigned int get_fd() {
-		return state::fd_by_id[id];
-	}
+class node {
+
+	public:
+
+		unsigned int id;
+		unsigned int distance;
+
+		explicit node(unsigned int id, unsigned int distance) : id(id), distance(distance) {
+		}
+
+		user *get_user() {
+			return state::users_by_id[id];
+		}
+		int get_fd() {
+			return state::fd_by_id[id];
+		}
 };
 
 typedef list<node> nodelist_t;
+
+/*
 
 class route : public map<unsigned int,set<unsigned int>,uint_compar> {
 	public:
 	private:
 };
 
+*/
+
 class user {
+	private:
+
+		nodelist_t nodes;
+
 	public:
 		unsigned int id;
 
@@ -358,9 +378,6 @@ class user {
 
 		friendset_t friends;
 		friendset_t friend_requests;
-
-		route ospf;
-		nodelist_t nodes;
 
 		user() : id(state::next_user_id++), actions(1), visible(true) {
 
@@ -470,6 +487,10 @@ class user {
 
 		int get_fd() {
 			return is_online() ? state::fd_by_id[id] : -1;
+		}
+
+		nodelist_t& get_nodes() {
+			return nodes;
 		}
 
 	private:
@@ -1246,7 +1267,7 @@ void do_simple_cmd(const char *cmd, int fd, const paramlist_t& params, const str
 
 			// just walk the tree and relay to online users
 
-			for(nodelist_t::iterator ritr = user->nodes.begin(); ritr != user->nodes.end(); ritr++)
+			for(nodelist_t::iterator ritr = user->get_nodes().begin(); ritr != user->get_nodes().end(); ritr++)
 				if(ritr->get_user()->is_online())
 					do_relay(ritr->get_fd(), user->username, cmd, ritr->distance, params, msg);
 		}
@@ -1500,7 +1521,7 @@ void do_command_scan(int fd, const paramlist_t& params, const string& msg) {
 
 		do_message(fd, MCBEGIN, MCDISTANCE);
 
-		for(nodelist_t::iterator ritr = user1->nodes.begin(); ritr != user1->nodes.end(); ritr++)
+		for(nodelist_t::iterator ritr = user1->get_nodes().begin(); ritr != user1->get_nodes().end(); ritr++)
 			if(ritr->get_user()->visible)
 				do_vmessage(fd, MCDISTANCE, "%d %s", ritr->distance, ritr->get_user()->username.c_str());
 
