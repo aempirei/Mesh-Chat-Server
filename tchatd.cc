@@ -473,16 +473,8 @@ class user {
 		}
 
 		nodelist_t& get_nodes() {
-
-			nodelist_t todo;
-			friendset_t visited;
-
-			todo.push_back(node(id,0));
-
 			nodes.clear();
-
-			span_nodes(todo, visited);
-
+			bfs(node(id,0));
 			return nodes;
 		}
 
@@ -510,6 +502,16 @@ class user {
 					if(visited.find(*fitr) == visited.end())
 						todo.push_back(node(*fitr, current.distance + 1));
 			}
+		}
+
+		void bfs(const node& root) {
+
+			nodelist_t todo;
+			friendset_t visited;
+
+			todo.push_back(root);
+
+			span_nodes(todo, visited);
 		}
 
 		void span_nodes(nodelist_t& todo, friendset_t& visited) {
