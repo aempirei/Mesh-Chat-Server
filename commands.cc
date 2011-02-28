@@ -14,21 +14,21 @@ namespace command {
 
 	struct command_name_fptr_pair command_pairs[] = {
 
-		{ CUSER   , do_command_user    }, // USER username
-		{ CPASS   , do_command_pass    }, // PASS password
-		{ CSET    , do_command_set     }, // SET property :value
-		{ CPING   , do_command_ping    }, // PING :challenge
-		{ CPONG   , do_command_pong    }, // PONG :response
-		{ CFRIEND , do_command_friend  }, // FRIEND username
-		{ CANTI   , do_command_anti    }, // ANTI username
-		{ CSAY    , do_command_say     }, // SAY :message
-		{ CVECTOR , do_command_vector  }, // VECTOR username :message
-		{ CWHISPER, do_command_whisper }, // WHISPER :message
-		{ CTELL   , do_command_tell    }, // TELL username :message
-		{ CWHOIS  , do_command_whois   }, // WHOIS username
-		{ CSCAN   , do_command_scan    }, // SCAN
-		{ CFRIENDS, do_command_friends }, // FRIENDS
-		{ CQUIT   , do_command_quit    }, // QUIT
+		{ CUSER   , tc_command_user    }, // USER username
+		{ CPASS   , tc_command_pass    }, // PASS password
+		{ CSET    , tc_command_set     }, // SET property :value
+		{ CPING   , tc_command_ping    }, // PING :challenge
+		{ CPONG   , tc_command_pong    }, // PONG :response
+		{ CFRIEND , tc_command_friend  }, // FRIEND username
+		{ CANTI   , tc_command_anti    }, // ANTI username
+		{ CSAY    , tc_command_say     }, // SAY :message
+		{ CVECTOR , tc_command_vector  }, // VECTOR username :message
+		{ CWHISPER, tc_command_whisper }, // WHISPER :message
+		{ CTELL   , tc_command_tell    }, // TELL username :message
+		{ CWHOIS  , tc_command_whois   }, // WHOIS username
+		{ CSCAN   , tc_command_scan    }, // SCAN
+		{ CFRIENDS, tc_command_friends }, // FRIENDS
+		{ CQUIT   , tc_command_quit    }, // QUIT
 		{ NULL    , NULL               }
 	};
 
@@ -83,39 +83,7 @@ namespace command {
 	msgmap_t messages;
 }
 
-// fd       -- target fd
-// username -- source username
-// command  -- issued command
-// distance -- distance to target from source
-// params   -- any parameters
-// msg      -- possible message
-
-void do_relay(int fd, const string& username, const char *command, unsigned int distance, const paramlist_t& params, const string& msg) {
-
-	DEBUG_MESSAGE;
-
-	char line[config::maxcmdsz];
-	string params_string("");
-
-	// join all the params together
-	for(paramlist_t::const_iterator p_itr = params.begin(); p_itr != params.end(); /* inc in body */) {
-		params_string += *p_itr;
-		if(++p_itr != params.end())
-			params_string += ' ';
-	}
-
-	// add msg if there is non-empty one
-
-	if(msg.empty()) {
-		snprintf(line, config::maxcmdsz, "@ %s %d %s %s\n", username.c_str(), distance, command, params_string.c_str());
-	} else {
-		snprintf(line, config::maxcmdsz, "@ %s %d %s %s :%s\n", username.c_str(), distance, command, params_string.c_str(), msg.c_str());
-	}
-
-	do_send(fd, line, strlen(line), 0);
-}
-
-void do_command_user(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_user(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -171,7 +139,7 @@ void do_command_user(int fd, const paramlist_t& params, const string& msg) {
 		// dis-allow user change
 	}
 }
-void do_command_pass(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_pass(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -211,7 +179,7 @@ void do_command_pass(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCPASS);
 	}
 }
-void do_command_set(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_set(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -226,42 +194,19 @@ void do_command_set(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CSET);
 	}
 }
-void do_simple_cmd(const char *cmd, int fd, const paramlist_t& params, const string& msg) {
-
-	if(is_validated(fd)) {
-
-		// no params allowed
-
-		if(params.size() != 0) {
-			do_message(fd, MCPARAMS, cmd);
-		} else {
-
-			user *user = state::users_by_fd[fd];
-
-			// just walk the tree and relay to online users
-
-			for(nodelist_t::iterator ritr = user->get_nodes().begin(); ritr != user->get_nodes().end(); ritr++)
-				if(ritr->get_user()->is_online())
-					do_relay(ritr->get_fd(), user->username, cmd, ritr->distance, params, msg);
-		}
-
-	} else {
-		do_message(fd, MCLOGIN, cmd);
-	}
-}
-void do_command_ping(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_ping(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	do_simple_cmd(CPING, fd, params, msg);
 }
-void do_command_pong(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_pong(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	do_simple_cmd(CPONG, fd, params, msg);
 }
-void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_friend(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -318,7 +263,7 @@ void do_command_friend(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CFRIEND);
 	}
 }
-void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_anti(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -359,13 +304,13 @@ void do_command_anti(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CANTI);
 	}
 }
-void do_command_say(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_say(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
 	do_simple_cmd(CSAY, fd, params, msg);
 }
-void do_command_vector(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_vector(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -376,7 +321,7 @@ void do_command_vector(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CVECTOR);
 	}
 }
-void do_command_whisper(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_whisper(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -387,7 +332,7 @@ void do_command_whisper(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CWHISPER);
 	}
 }
-void do_command_tell(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_tell(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -421,7 +366,7 @@ void do_command_tell(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CTELL);
 	}
 }
-void do_command_whois(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_whois(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -482,7 +427,7 @@ void do_command_whois(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CWHOIS);
 	}
 }
-void do_command_scan(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_scan(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -504,7 +449,7 @@ void do_command_scan(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CSCAN);
 	}
 }
-void do_command_friends(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_friends(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 
@@ -547,7 +492,7 @@ void do_command_friends(int fd, const paramlist_t& params, const string& msg) {
 		do_message(fd, MCLOGIN, CFRIENDS);
 	}
 }
-void do_command_quit(int fd, const paramlist_t& params, const string& msg) {
+void tc_command_quit(int fd, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
 

@@ -9,21 +9,21 @@ typedef void command_fn_t(int fd, const paramlist_t& params, const std::string& 
 typedef std::map<const char *, command_fn_t *, strcase_compar> commandmap_t;
 typedef std::map<const char *,const char *, strcase_compar> msgmap_t;
 
-command_fn_t do_command_anti;
-command_fn_t do_command_friend;
-command_fn_t do_command_friends;
-command_fn_t do_command_user;
-command_fn_t do_command_pass;
-command_fn_t do_command_ping;
-command_fn_t do_command_pong;
-command_fn_t do_command_quit;
-command_fn_t do_command_say;
-command_fn_t do_command_scan;
-command_fn_t do_command_set;
-command_fn_t do_command_tell;
-command_fn_t do_command_vector;
-command_fn_t do_command_whisper;
-command_fn_t do_command_whois;
+command_fn_t tc_command_anti;
+command_fn_t tc_command_friend;
+command_fn_t tc_command_friends;
+command_fn_t tc_command_user;
+command_fn_t tc_command_pass;
+command_fn_t tc_command_ping;
+command_fn_t tc_command_pong;
+command_fn_t tc_command_quit;
+command_fn_t tc_command_say;
+command_fn_t tc_command_scan;
+command_fn_t tc_command_set;
+command_fn_t tc_command_tell;
+command_fn_t tc_command_vector;
+command_fn_t tc_command_whisper;
+command_fn_t tc_command_whois;
 
 namespace command {
 

@@ -457,27 +457,6 @@ void do_connect() {
 	do_message(fd, MCSERVER, PROGRAM " " VERSION);
 }
 
-void do_disconnect(int fd) {
-
-	DEBUG_PRINTF("disconnecting %d\n", fd);
-
-	if(state::users_by_fd.find(fd) != state::users_by_fd.end()) {
-		unsigned int user_id = state::users_by_fd[fd]->id;
-		state::fd_by_id.erase(user_id);
-	}
-
-	state::fdset.erase(fd);
-
-	delete state::recvstreams[fd];
-	state::recvstreams.erase(fd);
-	state::users_by_fd.erase(fd);
-	state::partial_logins.erase(fd);
-
-	while(close(fd) == -1 && errno == EINTR) {
-		// do nothing
-	}
-}
-
 void do_read_all() {
 
 	DEBUG_MESSAGE;
@@ -524,72 +503,6 @@ void do_read(int fd) {
 
 			do_handle_input(fd);
 	}
-}
-
-void do_send(int fd, const void *buf, size_t len, int flags) {
-
-    DEBUG_MESSAGE;
-
-	size_t left = len;
-	size_t done = 0;
-
-	do {
-		int n = send(fd, buf, left, flags);
-		if(n == -1) {
-			if(errno == EINTR)
-				continue;
-			else
-				handle_error("send");
-		} else {
-			left -= n;
-			done += n;
-		}
-	} while(left > 0);
-}
-
-void do_message(int fd, const char *msg_code, const char *msg) {
-
-	DEBUG_MESSAGE;
-
-	char line[config::maxcmdsz];
-
-	const char *msg_str;
-
-	// make sure msg_code has a msg_str otherwise let the msg_str be "unknown code"
-
-	if(command::messages.find(msg_code) == command::messages.end())
-		msg_str = "unknown code";
-	else
-		msg_str = command::messages[msg_code];
-
-	// decide if the code has a custom message or not
-
-	if(msg == NULL)
-		snprintf(line, config::maxcmdsz, "%s %s\n", msg_code, msg_str);
-	else
-		snprintf(line, config::maxcmdsz, "%s %s :%s\n", msg_code, msg_str, msg);
-
-	do_send(fd, line, strlen(line), 0);
-}
-
-void do_message(int fd, const char *msg_code, const string& msg_string) {
-	do_message(fd, msg_code, msg_string.c_str());
-}
-
-void do_message(int fd, const char *msg_code) {
-	do_message(fd, msg_code, NULL);
-}
-
-void do_vmessage(int fd, const char *msg_code, const char *fmt, ...) {
-
-	char msg_str[config::maxcmdsz];
-	va_list ap;
-
-	va_start(ap,fmt);
-	vsnprintf(msg_str, config::maxcmdsz, fmt, ap);
-	va_end(ap);
-
-	do_message(fd, msg_code, msg_str);
 }
 
 bool is_valid_username(const string& username) {
@@ -711,15 +624,6 @@ bool is_valid_partial_login(int fd, const char *username, const char *password) 
 	// partial login, return true but no state adjustments
 
 	return true;
-}
-
-void do_login(int fd) {
-
-	DEBUG_MESSAGE;
-
-	do_message(fd, MCVERIFIED, state::users_by_fd[fd]->username);
-	do_message(fd, MCMOTD, config::motd);
-	do_message(fd, MCNAME, config::servername);
 }
 
 void do_unknown_command(int fd, const string& command, const paramlist_t& params, const string& msg) {
