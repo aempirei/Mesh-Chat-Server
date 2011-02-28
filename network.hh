@@ -28,5 +28,6 @@ void do_send(int fd, const void *buf, size_t len, int flags);
 bool is_valid_partial_login(int fd, const char *username, const char *password);
 bool is_valid_username(const std::string& username);
 bool is_validated(int fd);
+bool is_online(unsigned int id);
 
 #endif

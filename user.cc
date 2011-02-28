@@ -1,6 +1,7 @@
 #include <stdexcept>
 
 #include "tchatd.hh"
+#include "network.hh"
 #include "user.hh"
 
 #include <stdio.h>

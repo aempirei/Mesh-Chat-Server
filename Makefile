@@ -9,7 +9,7 @@ all: $(TARGETS)
 
 tchatd.o: tchatd.hh
 
-tchatd: tchatd.o user.o commands.o types.o network.o
+tchatd: tchatd.o user.o commands.o types.o network.o state.o config.o
 	$(CCC) $(CCFLAGS) -ggdb -g -o $@ $^
 
 clean:

@@ -24,72 +24,38 @@
 
 using namespace std;
 
-void do_options(int argc, char **argv);
-void do_config();
-void do_load_users();
-void do_load_friends();
-void do_load_routes();
-void do_load_sockets();
-void do_load();
-void do_work();
+// primary subroutines from main
+
+void sub_options(int argc, char **argv);
+void sub_config();
+void sub_test();
+void sub_work();
+
+void sub_load();
+void sub_load_users();
+void sub_load_friends();
+void sub_load_routes();
+void sub_load_sockets();
+
+// sub_save and sub_cleanup is registered atexit()
+
+void sub_save_users();
+void sub_save_friends();
+void sub_save_routes();
+void sub_save();
+
+void sub_cleanup();
+void sub_cleanup_temp();
+void sub_cleanup_sockets();
+
+// other crap -- some of this belongs in network.cc
+
 void do_connect();
 void do_read_all();
 void do_read(int fd);
 void do_handle_input(int fd);
-void do_save_users();
-void do_save_friends();
-void do_save_routes();
-void do_save();
-void do_cleanup_sockets();
-void do_cleanup_temp();
-void do_cleanup();
-
-void do_test();
 
 void sighandler(int);
-
-namespace state {
-
-	int sd = -1;
-
-	fd_set rfds;
-	fd_set wfds;
-
-	fdset_t fdset;
-
-	map<int,stringstream *> recvstreams;
-
-	unsigned int next_user_id = 1;
-
-	userlist_t users;
-
-	map<unsigned int,user *> users_by_id;
-	map<unsigned int,user *> users_by_fd;
-	map<const char *,user *> users_by_username;
-	map<unsigned int,int> fd_by_id;
-
-	map<unsigned int,struct partial_login> partial_logins;
-
-	bool done = false;
-}
-
-namespace config {
-
-	bool verbose = false;
-	bool debug = false;
-	bool test = false;
-
-	unsigned int port = DFLPORT;
-	unsigned int connections = FD_SETSIZE;
-	unsigned int backlog = SOMAXCONN;
-	unsigned int maxcmdsz = MAXCMDSZ;
-	unsigned int maxusersz = DFLUSERSZ;
-
-	string servername("our tchatd server");
-	string motd("welcome to our tchat server");
-	struct in_addr ip = { INADDR_ANY };
-}
-
 
 int randomrange(int a, int b) {
 	double d = (b - a + 1) * (double)random() / (RAND_MAX + 1.0);
@@ -107,29 +73,29 @@ int main(int argc, char **argv) {
 	signal(SIGUSR1, sighandler);
 	signal(SIGUSR2, sighandler);
 
-	atexit(do_cleanup);
-	atexit(do_save);
+	atexit(sub_cleanup);
+	atexit(sub_save);
 
 	// check options
 
-	do_options(argc, argv);
+	sub_options(argc, argv);
 
 	// load configuration
 
-	do_config();
+	sub_config();
 
 	// load state
 
-	do_load();
+	sub_load();
 
 	// test if option is set
 
 	if(config::test)
-		do_test();
+		sub_test();
 
 	// start main event loop
 
-	do_work();
+	sub_work();
 
 	exit(EXIT_SUCCESS);
 }
@@ -165,7 +131,7 @@ void usage(const char *prog) {
 	printf("\t%-*s%s\n\n", width, "-h", "help");
 }
 
-void do_options(int argc, char **argv) {
+void sub_options(int argc, char **argv) {
 
 	DEBUG_MESSAGE;
 
@@ -269,7 +235,7 @@ void handle_error(const char *str) {
 	exit(EXIT_FAILURE);
 }
 
-void do_config() {
+void sub_config() {
 
 	DEBUG_MESSAGE;
 
@@ -315,22 +281,22 @@ void do_config() {
 	}
 }
 
-void do_load_users() {
+void sub_load_users() {
 	DEBUG_MESSAGE;
 	// FIXME: load users
 }
 
-void do_load_friends() {
+void sub_load_friends() {
 	DEBUG_MESSAGE;
 	// FIXME: load friends
 }
 
-void do_load_routes() {
+void sub_load_routes() {
 	DEBUG_MESSAGE;
 	// FIXME: load routes
 }
 
-void do_load_sockets() {
+void sub_load_sockets() {
 
 	DEBUG_MESSAGE;
 
@@ -357,7 +323,7 @@ void do_load_sockets() {
 		handle_error("listen");
 }
 
-void do_load_command() {
+void sub_load_command() {
 
 	DEBUG_MESSAGE;
 
@@ -368,22 +334,22 @@ void do_load_command() {
 		command::messages[command::msg_pairs[i].msg_code] = command::msg_pairs[i].msg_str;
 }
 
-void do_load() {
+void sub_load() {
 
 	DEBUG_MESSAGE;
 
-	do_load_users();
-	do_load_friends();
-	do_load_routes();
+	sub_load_users();
+	sub_load_friends();
+	sub_load_routes();
 
-	do_load_sockets();
+	sub_load_sockets();
 
-	do_load_command();
+	sub_load_command();
 
 	// connect to listening interface (socket/bind/listen)
 }
 
-void do_work() {
+void sub_work() {
 
 	DEBUG_MESSAGE;
 
@@ -505,127 +471,6 @@ void do_read(int fd) {
 	}
 }
 
-bool is_valid_username(const string& username) {
-
-	DEBUG_MESSAGE;
-
-	if(username.length() > 0 && username.length() <= config::maxusersz) {
-		for(unsigned int i = 0; i < username.length(); i++)
-			if(!isalnum(username[i]))
-				return false;
-		return true;
-	}
-	return false;
-}
-
-bool is_validated(int fd) {
-
-	DEBUG_MESSAGE;
-
-	return (state::users_by_fd.find(fd) != state::users_by_fd.end());
-}
-
-bool is_online(unsigned int id) {
-
-	DEBUG_MESSAGE;
-
-	return (state::fd_by_id.find(id) != state::fd_by_id.end());
-}
-
-bool is_valid_partial_login(int fd, const char *username, const char *password) {
-
-	DEBUG_MESSAGE;
-
-	struct partial_login& pl = state::partial_logins[fd];
-
-	if(username != NULL) {
-		if(is_valid_username(username))
-			pl.username = username;
-		else
-			return false;
-	}
-
-	if(password != NULL)
-		pl.password = password;
-
-	if(!pl.username.empty() && !pl.password.empty()) {
-
-		// theres enough login information to attempt a login or create a new user
-		// so do either of those, and if the login attempt fails for a known user
-		// then fail the partial login and reset the partial login entry.
-
-		DEBUG_MESSAGE2("doing complete login check");
-
-		if(state::users_by_username.find(pl.username.c_str()) == state::users_by_username.end()) {
-
-			// create new user since we dont know this user
-			// user constructor knows how to save itself to the relevant places
-
-			DEBUG_MESSAGE2("doing new user creation");
-
-			user *new_user = state::users_by_fd[fd] = new user(pl.username, pl.password);
-
-			state::fd_by_id[new_user->id] = fd;
-
-			do_message(fd, MCCREATED, new_user->username);
-
-			if(config::debug) {
-				printf("created user username=%s salt=%s pwhash=%s\n", new_user->username.c_str(), new_user->salt.c_str(), new_user->pwhash.c_str());
-			}
-
-			return true;
-
-		} else {
-
-			// load the user up and check the password
-
-			DEBUG_MESSAGE2("doing known user login");
-
-			user *known_user = state::users_by_username[pl.username.c_str()];
-
-			if(known_user->check_password(pl.password)) {
-
-				// login was good so validate by putting into fd->user map
-				// unless the user is already in the map, which in that case
-				// error no double logins
-
-				if(state::fd_by_id.find(known_user->id) == state::fd_by_id.end()) {
-
-					state::users_by_fd[fd] = known_user;
-
-					state::fd_by_id[known_user->id] = fd;
-
-					state::partial_logins.erase(fd);
-
-					return true;
-
-				} else {
-
-					do_message(fd, MCNODUPES, known_user->username);
-
-					state::partial_logins.erase(fd);
-					do_message(fd, MCRESET);
-
-					return false;
-				}
-
-			} else {
-
-				// login was bad so reset the partial login state
-
-				state::partial_logins.erase(fd);
-				do_message(fd, MCRESET);
-
-				return false;
-			}
-		}
-	}
-
-	// partial login, return true but no state adjustments
-
-	return true;
-}
-
 void do_unknown_command(int fd, const string& command, const paramlist_t& params, const string& msg) {
 
 	DEBUG_PRINTF("*** %s ( %d %s [ %ld ] %s )\n", __FUNCTION__, fd, command.c_str(), (long)params.size(), msg.c_str());
@@ -737,31 +582,31 @@ void do_handle_input(int fd) {
 	}
 }
 
-void do_save_users() {
+void sub_save_users() {
 	DEBUG_MESSAGE;
 	// FIXME: add save users
 }
 
-void do_save_friends() {
+void sub_save_friends() {
 	DEBUG_MESSAGE;
 	// FIXME: add save friends
 }
 
-void do_save_routes() {
+void sub_save_routes() {
 	DEBUG_MESSAGE;
 	// FIXME: add save routes
 }
 
-void do_save() {
+void sub_save() {
 
 	DEBUG_MESSAGE;
 
-	do_save_users();
-	do_save_friends();
-	do_save_routes();
+	sub_save_users();
+	sub_save_friends();
+	sub_save_routes();
 }
 
-void do_cleanup_sockets() {
+void sub_cleanup_sockets() {
 
 	DEBUG_MESSAGE;
 
@@ -776,19 +621,19 @@ void do_cleanup_sockets() {
 	}
 }
 
-void do_cleanup_temp() {
+void sub_cleanup_temp() {
 	DEBUG_MESSAGE;
 }
 
-void do_cleanup() {
+void sub_cleanup() {
 
 	DEBUG_MESSAGE;
 
-	do_cleanup_sockets();
-	do_cleanup_temp();
+	sub_cleanup_sockets();
+	sub_cleanup_temp();
 }
 
-void do_test() {
+void sub_test() {
 
 	user *u1 = new user("user1","pass");
 	user *u2 = new user("user2","pass");

@@ -1,7 +1,6 @@
 #include <string.h>
 
 #include "tchatd.hh"
-#include "types.hh"
 
 bool strcase_compar::operator()(const char * str1, const char *str2) {
 	return strcasecmp(str1, str2);
