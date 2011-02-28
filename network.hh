@@ -1,6 +1,8 @@
 #ifndef MESSAGE_HH
 #define MESSAGE_HH
 
+#include <string>
+
 void do_vmessage(int fd, const char *msg_code, const char *fmt, ...);
 void do_message(int fd, const char *msg_code, const std::string& msg_string);
 void do_message(int fd, const char *msg_code, const char *msg);

@@ -1,6 +1,10 @@
 #ifndef TCHATD_TYPES_HH
 #define TCHATD_TYPES_HH
 
+#include <list>
+#include <set>
+#include <string>
+
 struct strcase_compar {
 	bool operator()(const char * str1, const char *str2);
 };

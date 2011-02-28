@@ -1,12 +1,3 @@
-#include <vector>
-#include <list>
-#include <map>
-#include <set>
-#include <string>
-#include <iostream>
-#include <sstream>
-#include <stdexcept>
-
 #include "tchatd.hh"
 #include "user.hh"
 #include "network.hh"
@@ -15,20 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
-#include <ctype.h>
-
-#include <math.h>
-#include <errno.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <syslog.h>
-#include <errno.h>
-#include <stdarg.h>
 
 using namespace std;
 

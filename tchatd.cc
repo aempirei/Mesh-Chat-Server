@@ -1,11 +1,4 @@
-#include <vector>
-#include <list>
-#include <map>
-#include <set>
-#include <string>
-#include <iostream>
 #include <sstream>
-#include <stdexcept>
 
 #include "tchatd.hh"
 #include "user.hh"
@@ -27,7 +20,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <syslog.h>
-#include <errno.h>
 #include <stdarg.h>
 
 using namespace std;

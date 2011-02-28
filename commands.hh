@@ -1,6 +1,10 @@
 #ifndef COMMANDS_HH
 #define COMMANDS_HH
 
+#include <map>
+
+#include "types.hh"
+
 typedef void command_fn_t(int fd, const paramlist_t& params, const std::string& msg);
 typedef std::map<const char *, command_fn_t *, strcase_compar> commandmap_t;
 typedef std::map<const char *,const char *, strcase_compar> msgmap_t;
