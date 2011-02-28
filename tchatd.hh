@@ -11,7 +11,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include "tchatd-types.hh"
+#include "types.hh"
 
 bool is_online(unsigned int user_id);
 
