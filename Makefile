@@ -1,12 +1,18 @@
-TARGETS = tchatd 
+TARGETS = bin/tchatd 
+INSTALL_PATH = /usr/local/bin
+
+.PHONY: all clean wipe src/tchatd install
 
 all: $(TARGETS)
 
-tchatd.o: tchatd.hh
-
-tchatd:
+src/tchatd:
 	( cd src ; make )
-	cp src/tchatd bin
+
+bin/tchatd: src/tchatd
+	cp src/tchatd $@
+
+install: all
+	install -m755 $(TARGETS) $(INSTALL_PATH)
 
 clean:
 	( cd src ; make clean )
