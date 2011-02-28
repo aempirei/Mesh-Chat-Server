@@ -5,9 +5,9 @@ CFLAGS = -Wall
 CPPFLAGS = -Wall -O1
 TARGETS = tchatd 
 
-all: $(TARGETS)
+.PHONY: all wipe clean
 
-tchatd.o: tchatd.hh
+all: $(TARGETS)
 
 tchatd: tchatd.o user.o commands.o types.o network.o state.o config.o
 	$(CCC) $(CCFLAGS) -ggdb -g -o $@ $^
