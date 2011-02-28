@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "tchatd.hh"
+#include "user.hh"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,12 +27,6 @@
 #include <syslog.h>
 #include <errno.h>
 #include <stdarg.h>
-
-#define PROGRAM "Topology Chat Server"
-#define VERSION "1.0"
-#define DEBUG_MESSAGE     DEBUG_MESSAGE2(__FUNCTION__)
-#define DEBUG_MESSAGE2(a) option::debug && puts(a)
-#define DEBUG_PRINTF      option::debug && printf
 
 using namespace std;
 
@@ -63,25 +58,7 @@ void do_cleanup();
 
 void do_test();
 
-bool is_online(unsigned int user_id);
-
-void handle_error(const char *str);
-
 void sighandler(int);
-
-struct strcase_compar {
-	bool operator()(const char * str1, const char *str2) {
-		return strcasecmp(str1, str2) < 0;
-	}
-};
-
-class user;
-
-typedef set<int> fdset_t;
-typedef list<user *> userlist_t;
-typedef list<string> paramlist_t;
-typedef set<unsigned int> friendset_t;
-typedef pair<unsigned int, unsigned int> edge_t;
 
 typedef void command_fn_t(int fd, const paramlist_t& params, const string& msg);
 typedef map<const char *, command_fn_t *, strcase_compar> commandmap_t;
@@ -246,11 +223,6 @@ namespace command {
 	msgmap_t messages;
 }
 
-struct partial_login {
-	string username;
-	string password;
-};
-
 namespace state {
 
 	int sd = -1;
@@ -272,21 +244,15 @@ namespace state {
 	map<unsigned int,int> fd_by_id;
 
 	map<unsigned int,struct partial_login> partial_logins;
-}
-
-namespace status {
 
 	bool done = false;
 }
 
-namespace option {
+namespace config {
 
 	bool verbose = false;
 	bool debug = false;
 	bool test = false;
-}
-
-namespace config {
 
 #define MAXUSERSZ 24
 #define DFLUSERSZ 16
@@ -298,10 +264,10 @@ namespace config {
 	unsigned int backlog = SOMAXCONN;
 	unsigned int maxcmdsz = MAXCMDSZ;
 	unsigned int maxusersz = DFLUSERSZ;
-	struct in_addr ip = { INADDR_ANY };
 
 	string servername("our tchatd server");
 	string motd("welcome to our tchat server");
+	struct ::in_addr ip = { INADDR_ANY };
 }
 
 
@@ -311,220 +277,18 @@ int randomrange(int a, int b) {
 	return c + a;
 }
 
-class node {
-
-	public:
-
-		unsigned int id;
-		unsigned int distance;
-
-		explicit node(unsigned int id, unsigned int distance) : id(id), distance(distance) {
-		}
-		user *get_user() {
-			return state::users_by_id[id];
-		}
-		int get_fd() {
-			return state::fd_by_id[id];
-		}
-};
-
-typedef list<node> nodelist_t;
-
-/*
-
-class route : public map<unsigned int,set<unsigned int>,uint_compar> {
-	public:
-	private:
-};
-
-*/
-
-class user {
-	private:
-
-		nodelist_t nodes;
-
-	public:
-		unsigned int id;
-
-		string username;
-		string pwhash;
-		string salt;
-
-		unsigned int actions;
-		bool visible;
-
-		time_t last_action_at;
-		time_t created_at;
-
-		friendset_t friends;
-		friendset_t friend_requests;
-
-		bool operator==(const user& ruser) {
-			return (id == ruser.id);
-		}
-
-		bool operator!=(const user& ruser) {
-			return (id != ruser.id);
-		}
-
-		bool operator=(const user& user) {
-			throw runtime_error("user objects should never be assigned");
-		}
-
-		explicit user(const user& user) {
-			throw runtime_error("user objects should never be copied");
-		}
-
-		// a user object should never be constructed by another constructor,
-		// and should never be created via the copy constructor and never
-		// get assigned via the assignment operator
-
-		explicit user(const string& new_username, const string& new_password) : id(state::next_user_id++), actions(1), visible(true) {
-
-			last_action_at = created_at = time(NULL);
-
-			state::users.push_back(this);
-			state::users_by_id[id] = this;
-
-			set_username(new_username);
-			set_password(new_password);
-		}
-
-		bool set_username(const string& new_username) {
-
-			// remove old username
-
-			DEBUG_MESSAGE;
-
-			if(!username.empty()) {
-				DEBUG_MESSAGE2("removing old username");
-				state::users_by_username.erase(username.c_str());
-			}
-
-			// add new username
-
-			username = new_username;
-
-			state::users_by_username[new_username.c_str()] = this;
-
-			return true;
-		}
-
-		bool check_password(const string &try_password) {
-
-			DEBUG_MESSAGE;
-
-			string try_pwhash(crypt(try_password.c_str(), salt.c_str()));
-
-			return (try_pwhash == pwhash);
-		}
-
-		bool set_password(const string& new_password) {
-
-			DEBUG_MESSAGE;
-
-			salt = "$1$";
-
-			salt += randomrange('a', 'z');
-			salt += randomrange('a', 'z');
-			salt += randomrange('a', 'z');
-			salt += randomrange('a', 'z');
-
-			salt += '$';
-
-			pwhash = crypt(new_password.c_str(), salt.c_str());
-
-			return true;
-		}
-
-		void tick() {
-			actions++;
-			last_action_at = time(NULL);
-		}
-
-		long idle() {
-			return time(NULL) - last_action_at;
-		}
-
-		long age() {
-			return time(NULL) - created_at;
-		}
-
-		double rate() {
-			long dt = age();
-			return (double)actions / (dt ? dt : 1);
-		}
-
-		bool is_online() {
-			return ::is_online(id);
-		}
-
-		bool has_friend(const user *user) {
-			return has_friend(user->id);
-		}
-
-		bool has_friend(unsigned int id) {
-			return(friends.find(id) != friends.end());
-		}
-
-		int get_fd() {
-			return is_online() ? state::fd_by_id[id] : -1;
-		}
-
-		nodelist_t& get_nodes() {
-			nodes.clear();
-			bfs(node(id,0));
-			return nodes;
-		}
-
-	private:
-
-		void visit(node& current, nodelist_t& todo, friendset_t& visited) {
-
-			// if this current node is not in the visited set then visit it
-
-			if(visited.find(current.id) == visited.end()) {
-
-				// mark this node as visited
-
-				visited.insert(current.id);
-
-				nodes.push_back(current);
-
-				// push all the unvisited neighbors
-				// onto the back of the todo list
-				// with an adjusted distance
-
-				user *user = state::users_by_id[current.id];
-
-				for(friendset_t::iterator fitr = user->friends.begin(); fitr != user->friends.end(); fitr++)
-					if(visited.find(*fitr) == visited.end())
-						todo.push_back(node(*fitr, current.distance + 1));
-			}
-		}
-
-		void bfs(const node& root) {
-
-			nodelist_t todo;
-			friendset_t visited;
-
-			todo.push_back(root);
-
-			span_nodes(todo, visited);
-		}
-
-		void span_nodes(nodelist_t& todo, friendset_t& visited) {
-
-			// while the todo list is not empty
-			// process it as first-in first-out
-
-			while(!todo.empty()) {
-				visit(todo.front(), todo, visited);
-				todo.pop_front();
-			}
-		}
-};
+bool strcase_compar::operator()(const char * str1, const char *str2) {
+	return strcasecmp(str1, str2);
+}
+
+node::node(unsigned int id, unsigned int distance) : id(id), distance(distance) {
+}
+user *node::get_user() {
+	return state::users_by_id[id];
+}
+int node::get_fd() {
+	return state::fd_by_id[id];
+}
 
 int main(int argc, char **argv) {
 
@@ -553,7 +317,7 @@ int main(int argc, char **argv) {
 
 	// test if option is set
 
-	if(option::test)
+	if(config::test)
 		do_test();
 
 	// start main event loop
@@ -649,7 +413,7 @@ void do_options(int argc, char **argv) {
 
 			case 'v':
 
-				option::verbose = true;
+				config::verbose = true;
 				break;
 
 			case 'V':
@@ -659,12 +423,12 @@ void do_options(int argc, char **argv) {
 
 			case 'D':
 
-				option::debug = true;
+				config::debug = true;
 				break;
 
 			case '@':
 
-				option::test = true;
+				config::test = true;
 				break;
 
 			case 'h':
@@ -679,17 +443,17 @@ void do_options(int argc, char **argv) {
 void sighandler(int signo) {
 
 	if(signo == SIGINT) {
-		option::debug && puts("interrupt caught");
+		config::debug && puts("interrupt caught");
 		exit(EXIT_SUCCESS);
 	} else if(signo == SIGHUP) {
-		option::debug && puts("hang-up caught");
+		config::debug && puts("hang-up caught");
 		exit(EXIT_SUCCESS);
 	} else if(signo == SIGALRM) {
-		option::debug && puts("alarm caught");
+		config::debug && puts("alarm caught");
 	} else if(signo == SIGUSR1) {
-		option::debug && puts("user signal 1 caught");
+		config::debug && puts("user signal 1 caught");
 	} else if(signo == SIGUSR2) {
-		option::debug && puts("user signal 2 caught");
+		config::debug && puts("user signal 2 caught");
 	}
 }
 
@@ -733,7 +497,7 @@ void do_config() {
 		exit(EXIT_FAILURE);
 	}
 
-	if(option::verbose) {
+	if(config::verbose) {
 		printf("%*s | %s:%d\n", width, "will bind to", config::ip.s_addr == INADDR_ANY ? "any" : inet_ntop(AF_INET, &config::ip, str, sizeof(str)), config::port);
 		printf("%*s | %d\n", width, "maximum connections", config::connections);
 		printf("%*s | %d\n", width, "connection backlog", config::backlog);
@@ -816,7 +580,7 @@ void do_work() {
 
 	DEBUG_MESSAGE;
 
-	while(!status::done) {
+	while(!state::done) {
 
 		// watch all file descriptors for read or exception work
 
@@ -850,7 +614,7 @@ void do_work() {
 
 			case 0:
 
-				option::debug && puts("no data");
+				config::debug && puts("no data");
 				break;
 
 			default:
@@ -1117,7 +881,7 @@ bool is_valid_partial_login(int fd, const char *username, const char *password) 
 
 			do_message(fd, MCCREATED, new_user->username);
 
-			if(option::debug) {
+			if(config::debug) {
 				printf("created user username=%s salt=%s pwhash=%s\n", new_user->username.c_str(), new_user->salt.c_str(), new_user->pwhash.c_str());
 			}
 
@@ -1709,7 +1473,7 @@ void do_handle_input(int fd) {
 				if(ss->peek() == '\n')
 					ss->get();
 
-				option::debug && puts("command too long");
+				config::debug && puts("command too long");
 			}
 
 		} else if(ss->good()) {
@@ -1734,7 +1498,7 @@ void do_handle_input(int fd) {
 		// if data was read on the exit round then put it back
 
 		ss->write(line, ss->gcount());
-		option::debug && puts("not enough data");
+		config::debug && puts("not enough data");
 	}
 }
 
