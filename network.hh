@@ -18,10 +18,18 @@ void do_relay(int fd, const std::string& username, const char *command, unsigned
 
 void do_simple_cmd(const char *cmd, int fd, const paramlist_t& params, const std::string& msg);
 
+void do_unknown_command(int fd, const std::string& command, const paramlist_t& params, const std::string& msg);
+
+void do_handle_input(int fd);
+void do_handle_line(int fd, const char *line);
+
 // socket layer
 
 void do_disconnect(int fd);
 void do_send(int fd, const void *buf, size_t len, int flags);
+void do_connect();
+void do_read_all();
+void do_read(int fd);
 
 // auth
 

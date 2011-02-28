@@ -1,5 +1,3 @@
-#include <sstream>
-
 #include "tchatd.hh"
 #include "user.hh"
 #include "network.hh"
@@ -11,7 +9,14 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <math.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <syslog.h>
 #include <stdarg.h>
 
 using namespace std;
@@ -291,5 +296,182 @@ bool is_online(unsigned int id) {
 	DEBUG_MESSAGE;
 
 	return (state::fd_by_id.find(id) != state::fd_by_id.end());
+}
+
+void do_connect() {
+
+	DEBUG_MESSAGE;
+
+	struct sockaddr_in sin;
+
+	socklen_t sl = sizeof(sin);
+
+	int fd = accept(state::sd, (struct sockaddr *)&sin, &sl);
+	if(fd == -1)
+		handle_error("accept");
+
+	state::fdset.insert(fd);
+	state::recvstreams[fd] = new stringstream(stringstream::binary|stringstream::out|stringstream::in);
+
+	do_message(fd, MCSERVER, PROGRAM " " VERSION);
+}
+
+void do_read_all() {
+
+	DEBUG_MESSAGE;
+
+	fdset_t::iterator fd_itr = state::fdset.begin();
+
+	while(fd_itr != state::fdset.end()) {
+		// process each iterator for reading data, but make sure we get the iterators next position
+		// before calling, since do_read() may disconnect an fd which will destroy the associated iterator
+		int fd = *fd_itr++;
+		if(FD_ISSET(fd, &state::rfds))
+			do_read(fd);
+	}
+}
+
+void do_read(int fd) {
+
+	static char buf[4096];
+	int n;
+
+	DEBUG_PRINTF("reading up to %ld bytes from %d\n", (long)sizeof(buf), fd);
+
+	do {
+		n = recv(fd, (void *)buf, sizeof(buf), 0);
+	} while(n == -1 && errno == EINTR);
+
+	switch(n) {
+
+		case -1:
+
+			handle_error("recv");
+			break;
+
+		case 0:
+
+			do_disconnect(fd);
+			break;
+
+		default:
+
+			DEBUG_PRINTF("read %d bytes from %d\n", n, fd);
+
+			state::recvstreams[fd]->write(buf, n);
+
+			do_handle_input(fd);
+	}
+}
+
+void do_unknown_command(int fd, const string& command, const paramlist_t& params, const string& msg) {
+
+	DEBUG_PRINTF("*** %s ( %d %s [ %ld ] %s )\n", __FUNCTION__, fd, command.c_str(), (long)params.size(), msg.c_str());
+
+	do_message(fd, MCCMD, command.c_str());
+}
+
+void do_handle_input(int fd) {
+
+	DEBUG_MESSAGE;
+
+	char line[config::maxcmdsz];
+	stringstream *ss = state::recvstreams[fd];
+	stringbuf sb;
+
+	while(!ss->eof()) {
+
+		// process each line as a command
+		// handle incomplete lines and lines that are too long
+
+		ss->getline(line, config::maxcmdsz);
+
+		if(ss->fail()) {
+
+			if(!ss->eof()) {
+
+				// a command was too long if FAIL without EOF so skip it
+
+				ss->clear();
+				ss->get(sb, '\n');
+
+				if(ss->peek() == '\n')
+					ss->get();
+
+				config::debug && puts("command too long");
+			}
+
+		} else if(ss->good()) {
+
+			do_handle_line(fd, line);
+
+			// if connection was closed, then quickly leave since
+			// the iterator for ss is no longer valid
+
+			if(state::fdset.find(fd) == state::fdset.end())
+				return;
+		}
+
+		// any time we read EOF then theres definitely no more data for now
+
+	}
+
+	ss->clear();
+
+	if(ss->gcount() > 0) {
+
+		// if data was read on the exit round then put it back
+
+		ss->write(line, ss->gcount());
+		config::debug && puts("not enough data");
+	}
+}
+
+void do_handle_line(int fd, const char *line) {
+
+	DEBUG_PRINTF("processing line for %d : %s\n", fd, line);
+
+	stringstream ss(line, stringstream::in | stringstream::out);
+
+	string command;
+	list<string> params;
+	string msg;
+
+	// a command line is a newline (0x10 '\n') terminated string of the form:
+	// COMMAND PARAMS* (:MESSAGE)?
+
+	// get the command
+
+	ss >> skipws >> command >> ws;
+
+	// get zero or more parameters
+
+	while(!ss.eof() && ss.peek() != ':') {
+		string next;
+		ss >> next >> ws;
+		params.push_back(next);
+	}
+
+	// get the optional message
+
+	if(!ss.eof() && ss.peek() == ':') {
+		stringbuf sb;
+		ss.get();
+		ss.get(sb);
+		msg = sb.str();
+	}
+
+	// try to call the corresponding command
+
+	commandmap_t::iterator command_itr = command::calls.find(command.c_str());
+
+	if(command_itr == command::calls.end()) {
+		do_unknown_command(fd,command,params,msg);
+	} else {
+		// if the command is legit, then tick the user if they are validated
+		if(is_validated(fd))
+			state::users_by_fd[fd]->tick();
+		(command_itr->second)(fd,params,msg);
+	}
 }
 
