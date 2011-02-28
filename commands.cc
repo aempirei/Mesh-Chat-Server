@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 using namespace std;
 
@@ -80,6 +81,38 @@ namespace command {
 	};
 
 	msgmap_t messages;
+}
+
+// fd       -- target fd
+// username -- source username
+// command  -- issued command
+// distance -- distance to target from source
+// params   -- any parameters
+// msg      -- possible message
+
+void do_relay(int fd, const string& username, const char *command, unsigned int distance, const paramlist_t& params, const string& msg) {
+
+	DEBUG_MESSAGE;
+
+	char line[config::maxcmdsz];
+	string params_string("");
+
+	// join all the params together
+	for(paramlist_t::const_iterator p_itr = params.begin(); p_itr != params.end(); /* inc in body */) {
+		params_string += *p_itr;
+		if(++p_itr != params.end())
+			params_string += ' ';
+	}
+
+	// add msg if there is non-empty one
+
+	if(msg.empty()) {
+		snprintf(line, config::maxcmdsz, "@ %s %d %s %s\n", username.c_str(), distance, command, params_string.c_str());
+	} else {
+		snprintf(line, config::maxcmdsz, "@ %s %d %s %s :%s\n", username.c_str(), distance, command, params_string.c_str(), msg.c_str());
+	}
+
+	do_send(fd, line, strlen(line), 0);
 }
 
 void do_command_user(int fd, const paramlist_t& params, const string& msg) {

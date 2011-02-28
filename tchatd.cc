@@ -30,7 +30,6 @@ void do_load_users();
 void do_load_friends();
 void do_load_routes();
 void do_load_sockets();
-void do_send(int fd, const void *buf, size_t len, int flags);
 void do_load();
 void do_work();
 void do_connect();
@@ -96,19 +95,6 @@ int randomrange(int a, int b) {
 	double d = (b - a + 1) * (double)random() / (RAND_MAX + 1.0);
 	int c = (int)floor(d);
 	return c + a;
-}
-
-bool strcase_compar::operator()(const char * str1, const char *str2) {
-	return strcasecmp(str1, str2);
-}
-
-node::node(unsigned int id, unsigned int distance) : id(id), distance(distance) {
-}
-user *node::get_user() {
-	return state::users_by_id[id];
-}
-int node::get_fd() {
-	return state::fd_by_id[id];
 }
 
 int main(int argc, char **argv) {
@@ -604,38 +590,6 @@ void do_vmessage(int fd, const char *msg_code, const char *fmt, ...) {
 	va_end(ap);
 
 	do_message(fd, msg_code, msg_str);
-}
-
-// fd       -- target fd
-// username -- source username
-// command  -- issued command
-// distance -- distance to target from source
-// params   -- any parameters
-// msg      -- possible message
-
-void do_relay(int fd, const string& username, const char *command, unsigned int distance, const paramlist_t& params, const string& msg) {
-
-	DEBUG_MESSAGE;
-
-	char line[config::maxcmdsz];
-	string params_string("");
-
-	// join all the params together
-	for(paramlist_t::const_iterator p_itr = params.begin(); p_itr != params.end(); /* inc in body */) {
-		params_string += *p_itr;
-		if(++p_itr != params.end())
-			params_string += ' ';
-	}
-
-	// add msg if there is non-empty one
-
-	if(msg.empty()) {
-		snprintf(line, config::maxcmdsz, "@ %s %d %s %s\n", username.c_str(), distance, command, params_string.c_str());
-	} else {
-		snprintf(line, config::maxcmdsz, "@ %s %d %s %s :%s\n", username.c_str(), distance, command, params_string.c_str(), msg.c_str());
-	}
-
-	do_send(fd, line, strlen(line), 0);
 }
 
 bool is_valid_username(const string& username) {

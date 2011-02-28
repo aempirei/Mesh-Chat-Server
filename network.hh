@@ -10,7 +10,7 @@ void do_message(int fd, const char *msg_code);
 
 void do_login(int fd);
 void do_disconnect(int fd);
-void do_relay(int fd, const std::string& username, const char *command, unsigned int distance, const paramlist_t& params, const std::string& msg);
+void do_send(int fd, const void *buf, size_t len, int flags);
 
 bool is_valid_partial_login(int fd, const char *username, const char *password);
 bool is_valid_username(const std::string& username);
