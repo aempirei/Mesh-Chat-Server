@@ -16,5 +16,4 @@ bool is_valid_partial_login(int fd, const char *username, const char *password);
 bool is_valid_username(const std::string& username);
 bool is_validated(int fd);
 
-
 #endif
