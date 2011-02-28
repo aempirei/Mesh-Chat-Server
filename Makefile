@@ -1,19 +1,17 @@
-CC = gcc
-CCC = g++
-CCFLAGS = -Wall -lcrypt -O1
-CFLAGS = -Wall
-CPPFLAGS = -Wall -O1
 TARGETS = tchatd 
 
 all: $(TARGETS)
 
 tchatd.o: tchatd.hh
 
-tchatd: tchatd.o user.o commands.o types.o network.o state.o config.o
-	$(CCC) $(CCFLAGS) -ggdb -g -o $@ $^
+tchatd:
+	( cd src ; make )
+	cp src/tchatd bin
 
 clean:
-	rm -f *.o *~
+	( cd src ; make clean )
+	( cd bin ; make clean )
 
-wipe: clean
-	rm -f $(TARGETS)
+wipe:
+	( cd src ; make wipe )
+	( cd bin ; make wipe )
