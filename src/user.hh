@@ -30,10 +30,11 @@ class user {
 
 		explicit user(const user& user);
 		explicit user(const std::string& new_username, const std::string& new_password);
+      explicit user(const std::string& serialized);
 
 		bool set_username(const std::string& new_username);
 
-		bool check_password(const std::string &try_password);
+		bool check_password(const std::string& try_password);
 		bool set_password(const std::string& new_password);
 
 		// update timestamps and other state
@@ -53,6 +54,15 @@ class user {
 		// get neighbor distances
 
 		nodelist_t& get_nodes();
+
+      // serialization
+
+      std::string serialize();
+
+      // static
+
+      static bool exists(const std::string& username);
+      static bool exists(const char *username);
 
 	private:
 

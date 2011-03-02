@@ -42,6 +42,10 @@ user::user(const string& new_username, const string& new_password) : id(state::n
 	set_password(new_password);
 }
 
+user::user(const string& serialized) {
+   throw runtime_error("user object deserialization not implemented yet");
+}
+
 bool user::set_username(const string& new_username) {
 
 	// remove old username
@@ -172,4 +176,45 @@ void user::span_nodes(nodelist_t& todo, friendset_t& visited) {
 		visit(todo.front(), todo, visited);
 		todo.pop_front();
 	}
+}
+
+string user::serialize() {
+
+   stringstream ss(stringstream::binary|stringstream::out|stringstream::in);
+
+   // stream config
+
+   ss << dec << boolalpha;
+
+   // user data
+
+   ss << "u " << id << ' ' << username << ' ' << pwhash << ' ' << salt << ' ';
+   ss << actions << ' ' << visible << ' ';
+   ss << last_action_at << ' ' << created_at << ' ';
+
+   // friends
+
+   ss << "f ";
+   for(friendset_t::iterator fitr = friends.begin(); fitr != friends.end(); fitr++)
+      ss << *fitr << ' ';
+
+   // friend requests
+
+   ss << "r ";
+   for(friendset_t::iterator fitr = friend_requests.begin(); fitr != friend_requests.end(); fitr++)
+      ss << *fitr << ' ';
+
+   //terminator (newline)
+
+   ss << endl;
+
+   return ss.str();
+}
+
+bool user::exists(const std::string& username) {
+   return exists(username.c_str());
+}
+
+bool user::exists(const char *username) {
+   return state::users_by_username.find(username) != state::users_by_username.end();
 }

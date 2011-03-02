@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "tchatd.hh"
 #include "user.hh"
 #include "network.hh"
@@ -26,20 +28,18 @@ using namespace std;
 
 void sub_options(int argc, char **argv);
 void sub_config();
-void sub_test();
 void sub_work();
+void sub_test();
+void sub_signals();
+void sub_atexit();
 
 void sub_load();
 void sub_load_users();
-void sub_load_friends();
-void sub_load_routes();
 void sub_load_sockets();
+void sub_load_commands();
 
 // sub_save and sub_cleanup is registered atexit()
 
-void sub_save_users();
-void sub_save_friends();
-void sub_save_routes();
 void sub_save();
 
 void sub_cleanup();
@@ -61,16 +61,13 @@ int randomrange(int a, int b) {
 
 int main(int argc, char **argv) {
 
-	// register save, cleanup and signal handling
+   // register signal handlers
 
-	signal(SIGINT, sighandler);
-	signal(SIGHUP, sighandler);
-	signal(SIGALRM, sighandler);
-	signal(SIGUSR1, sighandler);
-	signal(SIGUSR2, sighandler);
+   sub_signals();
 
-	atexit(sub_cleanup);
-	atexit(sub_save);
+   // register atexit cleanup
+
+   sub_atexit();
 
 	// check options
 
@@ -84,14 +81,14 @@ int main(int argc, char **argv) {
 
 	sub_load();
 
-	// test if option is set
-
-	if(config::test)
-		sub_test();
-
 	// start main event loop
 
-	sub_work();
+   if(config::test)
+      sub_test();
+   else
+      sub_work();
+
+   // exit successfully
 
 	exit(EXIT_SUCCESS);
 }
@@ -99,17 +96,17 @@ int main(int argc, char **argv) {
 void sighandler(int signo) {
 
 	if(signo == SIGINT) {
-		config::debug && puts("interrupt caught");
+		DEBUG_MESSAGE2("interrupt caught");
 		exit(EXIT_SUCCESS);
 	} else if(signo == SIGHUP) {
-		config::debug && puts("hang-up caught");
+		DEBUG_MESSAGE2("hang-up caught");
 		exit(EXIT_SUCCESS);
 	} else if(signo == SIGALRM) {
-		config::debug && puts("alarm caught");
+		DEBUG_MESSAGE2("alarm caught");
 	} else if(signo == SIGUSR1) {
-		config::debug && puts("user signal 1 caught");
+		DEBUG_MESSAGE2("user signal 1 caught");
 	} else if(signo == SIGUSR2) {
-		config::debug && puts("user signal 2 caught");
+		DEBUG_MESSAGE2("user signal 2 caught");
 	}
 }
 
@@ -148,6 +145,19 @@ void usage(const char *prog) {
 	printf("\t%-*s%s\n", width, "-D", "debug mode");
 	printf("\t%-*s%s\n", width, "-@", "test mode");
 	printf("\t%-*s%s\n\n", width, "-h", "help");
+}
+
+void sub_signals() {
+   signal(SIGINT, sighandler);
+   signal(SIGHUP, sighandler);
+   signal(SIGALRM, sighandler);
+   signal(SIGUSR1, sighandler);
+   signal(SIGUSR2, sighandler);
+}
+
+void sub_atexit() {
+   atexit(sub_cleanup);
+   atexit(sub_save);
 }
 
 void sub_options(int argc, char **argv) {
@@ -283,16 +293,6 @@ void sub_load_users() {
 	// FIXME: load users
 }
 
-void sub_load_friends() {
-	DEBUG_MESSAGE;
-	// FIXME: load friends
-}
-
-void sub_load_routes() {
-	DEBUG_MESSAGE;
-	// FIXME: load routes
-}
-
 void sub_load_sockets() {
 
 	DEBUG_MESSAGE;
@@ -320,7 +320,7 @@ void sub_load_sockets() {
 		handle_error("listen");
 }
 
-void sub_load_command() {
+void sub_load_commands() {
 
 	DEBUG_MESSAGE;
 
@@ -336,12 +336,10 @@ void sub_load() {
 	DEBUG_MESSAGE;
 
 	sub_load_users();
-	sub_load_friends();
-	sub_load_routes();
 
 	sub_load_sockets();
 
-	sub_load_command();
+	sub_load_commands();
 
 	// connect to listening interface (socket/bind/listen)
 }
@@ -384,7 +382,7 @@ void sub_work() {
 
 			case 0:
 
-				config::debug && puts("no data");
+				DEBUG_MESSAGE2("no data");
 				break;
 
 			default:
@@ -402,28 +400,13 @@ void sub_work() {
 	}
 }
 
-void sub_save_users() {
-	DEBUG_MESSAGE;
-	// FIXME: add save users
-}
-
-void sub_save_friends() {
-	DEBUG_MESSAGE;
-	// FIXME: add save friends
-}
-
-void sub_save_routes() {
-	DEBUG_MESSAGE;
-	// FIXME: add save routes
-}
-
 void sub_save() {
 
 	DEBUG_MESSAGE;
 
-	sub_save_users();
-	sub_save_friends();
-	sub_save_routes();
+   for(userlist_t::iterator uitr = state::users.begin(); uitr != state::users.end(); uitr++) {
+      cout << (*uitr)->serialize();
+   }
 }
 
 void sub_cleanup_sockets() {
@@ -450,40 +433,24 @@ void sub_cleanup() {
 	DEBUG_MESSAGE;
 
 	sub_cleanup_sockets();
+
 	sub_cleanup_temp();
 }
 
 void sub_test() {
 
-	user *u1 = new user("user1","pass");
-	user *u2 = new user("user2","pass");
-	user *u3 = new user("user3","pass");
-	user *u4 = new user("user4","pass");
-	user *u5 = new user("user5","pass");
-	user *u6 = new user("user6","pass");
+   const char *usernames[] = { "fucker", "sucker", "shitter", "bob", NULL };
 
-	u1->friends.insert(u2->id);
-	u2->friends.insert(u1->id);
+   for(const char **username = usernames; *username != NULL; username++) {
+      if(!user::exists(*username)) {
+         printf("creating new user %s\n", *username);
+         new user(*username, *username);
+      }
+   }
 
-	u1->friends.insert(u3->id);
-	u3->friends.insert(u1->id);
+   const nodelist_t& nl = (*state::users.begin())->get_nodes();
 
-	u2->friends.insert(u4->id);
-	u4->friends.insert(u2->id);
+   for(nodelist_t::const_iterator itr = nl.begin(); itr != nl.end(); itr++)
+      printf("id = %d -- distance = %d\n", itr->id, itr->distance);
 
-	u3->friends.insert(u4->id);
-	u4->friends.insert(u3->id);
-
-	u4->friends.insert(u5->id);
-	u5->friends.insert(u4->id);
-
-	u5->friends.insert(u6->id);
-	u6->friends.insert(u5->id);
-
-	nodelist_t nl = u1->get_nodes();
-
-	for(nodelist_t::iterator itr = nl.begin(); itr != nl.end(); itr++)
-		printf("id = %d -- distance = %d\n", itr->id, itr->distance);
-
-	exit(EXIT_SUCCESS);
 }
