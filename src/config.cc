@@ -12,7 +12,12 @@ namespace config {
 	unsigned int maxcmdsz = MAXCMDSZ;
 	unsigned int maxusersz = DFLUSERSZ;
 
-	std::string servername("our tchatd server");
-	std::string motd("welcome to our tchat server");
+	// configpath gets prepended by $HOME during sub_config()
+
+	std::string configpath(DFLCONFIGPATH);
+	std::string savefile(DFLSAVEFILE);
+	std::string servername(DFLSERVERNAME);
+	std::string motd(DFLMOTD);
+
 	struct in_addr ip = { INADDR_ANY };
 }

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 
 #include "tchatd.hh"
 #include "user.hh"
@@ -15,6 +16,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -41,6 +43,8 @@ void sub_load_commands();
 // sub_save and sub_cleanup is registered atexit()
 
 void sub_save();
+void sub_save_users();
+void sub_save_config();
 
 void sub_cleanup();
 void sub_cleanup_temp();
@@ -51,7 +55,7 @@ void sub_cleanup_sockets();
 void sighandler(int);
 void version();
 void usage(const char *prog);
-int main(int argc, char **argv);
+int main(int argc, char **argv, char **envp);
 
 int randomrange(int a, int b) {
 	double d = (b - a + 1) * (double)random() / (RAND_MAX + 1.0);
@@ -59,7 +63,7 @@ int randomrange(int a, int b) {
 	return c + a;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv, char **envp) {
 
 	// register signal handlers
 
@@ -257,6 +261,13 @@ void sub_config() {
 		exit(EXIT_FAILURE);
 	}
 
+	if(getenv("HOME") != NULL) {
+		config::configpath = string(getenv("HOME")) + "/" + config::configpath;
+	} else {
+		printf("$HOME not defined in environment\n");
+		exit(EXIT_FAILURE);
+	}
+
 	if(config::maxusersz > MAXUSERSZ) {
 		printf("maximum username length cannot exceed %d bytes\n", MAXUSERSZ);
 		exit(EXIT_FAILURE);
@@ -285,12 +296,43 @@ void sub_config() {
 		printf("%*s | %d bytes\n", width, "maximum username length", config::maxusersz);
 		printf("%*s | %s\n", width, "server name", config::servername.c_str());
 		printf("%*s | %s\n", width, "message of the day", config::motd.c_str());
+		printf("%*s | %s\n", width, "configuration path", config::configpath.c_str());
+		printf("%*s | %s\n", width, "save state file", config::savefile.c_str());
 	}
 }
 
 void sub_load_users() {
+
 	DEBUG_MESSAGE;
-	// FIXME: load users
+
+	string fullsavepath = config::configpath + "/" + config::savefile;
+
+	struct stat statbuf;
+
+	fstream fs;
+	stringbuf sb;
+
+	if(stat(fullsavepath.c_str(), &statbuf) == -1 && errno == ENOENT) {
+		cout << "save file " << fullsavepath << " not found" << endl;
+		return;
+	}
+	
+	cout << "loading from " << fullsavepath << endl;
+
+	fs.open(fullsavepath.c_str(), fstream::in | fstream::binary);
+	if(fs.fail()) {
+		cout << "opening save file " << fullsavepath << " failed!" << endl;
+		
+	}
+
+	while(!fs.eof()) {
+		string str;
+		getline(fs, str);
+		user *loaded_user = new user(str);
+		cout << "loaded user " << loaded_user->id << ' ' << loaded_user->username << ' ' << loaded_user->pwhash << endl;
+	}
+
+	fs.close();
 }
 
 void sub_load_sockets() {
@@ -404,9 +446,50 @@ void sub_save() {
 
 	DEBUG_MESSAGE;
 
-   for(userlist_t::iterator uitr = state::users.begin(); uitr != state::users.end(); uitr++) {
-      cout << (*uitr)->serialize();
-   }
+	sub_save_config();
+	sub_save_users();
+}
+
+void sub_save_config() {
+	
+	DEBUG_MESSAGE;
+}
+
+void sub_save_users() {
+
+	DEBUG_MESSAGE;
+
+	string fullsavepath = config::configpath + "/" + config::savefile;
+
+	struct stat statbuf;
+
+	fstream fs;
+
+    fs.exceptions(ifstream::failbit | ifstream::badbit);
+
+	if(stat(config::configpath.c_str(), &statbuf) == -1 && errno == ENOENT) {
+
+		cout << "creating directory " << config::configpath << endl;
+
+		if(mkdir(config::configpath.c_str(), 0777) == -1)
+			handle_error("mkdir");
+	}
+
+	cout << "saving to " << fullsavepath << endl;
+
+	try {
+
+		fs.open(fullsavepath.c_str(), fstream::out | fstream::trunc | fstream::binary);
+
+		for(userlist_t::iterator uitr = state::users.begin(); uitr != state::users.end(); uitr++)
+			fs << (*uitr)->serialize();
+
+		fs.close();
+
+	} catch(fstream::failure e) {
+
+		cout << "save to " << fullsavepath << " failed!" << endl;
+	}
 }
 
 void sub_cleanup_sockets() {

@@ -13,10 +13,14 @@ namespace config {
 	extern bool debug;
 	extern bool test;
 
-#define MAXUSERSZ 24
-#define DFLUSERSZ 16
-#define MAXCMDSZ  512
-#define DFLPORT   30201
+#define MAXUSERSZ     24
+#define DFLUSERSZ     16
+#define MAXCMDSZ      512
+#define DFLPORT       30201
+#define DFLCONFIGPATH ".tchatd"
+#define DFLSAVEFILE   "tchatd.save"
+#define DFLSERVERNAME "our tchatd server"
+#define DFLMOTD       "welcome to our tchat server"
 
 	extern unsigned int port;
 	extern unsigned int connections;
@@ -24,8 +28,11 @@ namespace config {
 	extern unsigned int maxcmdsz;
 	extern unsigned int maxusersz;
 
+	extern std::string configpath;
+	extern std::string savefile;
 	extern std::string servername;
 	extern std::string motd;
+
 	extern struct in_addr ip;
 }
 
