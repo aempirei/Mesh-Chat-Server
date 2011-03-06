@@ -312,10 +312,14 @@ void sub_load_users() {
 	fstream fs;
 	stringbuf sb;
 
+	// check if save file exists
+
 	if(stat(fullsavepath.c_str(), &statbuf) == -1 && errno == ENOENT) {
 		cout << "save file " << fullsavepath << " not found" << endl;
 		return;
 	}
+
+	// open file 
 	
 	cout << "loading from " << fullsavepath << endl;
 
@@ -325,13 +329,14 @@ void sub_load_users() {
 		
 	}
 
+	// load each user
+
 	while(true) {
 		string str;
 		getline(fs, str);
 		if(fs.eof())
 			break;
 		user *loaded_user = new user(str);
-		cout << "loaded user " << loaded_user->id << ' ' << loaded_user->username << ' ' << loaded_user->pwhash << endl;
 	}
 
 	fs.close();
@@ -468,6 +473,8 @@ void sub_save_users() {
 	fstream fs;
 
     fs.exceptions(ifstream::failbit | ifstream::badbit);
+	
+	// check if save path exists and if not then make it
 
 	if(stat(config::configpath.c_str(), &statbuf) == -1 && errno == ENOENT) {
 
@@ -476,6 +483,8 @@ void sub_save_users() {
 		if(mkdir(config::configpath.c_str(), 0777) == -1)
 			handle_error("mkdir");
 	}
+
+	// save out to the save file
 
 	cout << "saving to " << fullsavepath << endl;
 
