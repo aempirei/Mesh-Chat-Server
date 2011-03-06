@@ -336,7 +336,7 @@ void sub_load_users() {
 		getline(fs, str);
 		if(fs.eof())
 			break;
-		user *loaded_user = new user(str);
+		new user(str);
 	}
 
 	fs.close();
