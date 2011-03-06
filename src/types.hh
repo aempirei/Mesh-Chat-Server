@@ -9,6 +9,10 @@ struct strcase_compar {
 	bool operator()(const char * str1, const char *str2);
 };
 
+struct str_compar {
+	bool operator()(const char * str1, const char *str2);
+};
+
 typedef std::list<std::string> paramlist_t;
 
 typedef std::set<int> fdset_t;

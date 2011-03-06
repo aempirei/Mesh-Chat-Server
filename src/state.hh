@@ -30,7 +30,7 @@ namespace state {
 
 	extern std::map<unsigned int,user *> users_by_id;
 	extern std::map<unsigned int,user *> users_by_fd;
-	extern std::map<const char *,user *> users_by_username;
+	extern std::map<const char *,user *,str_compar> users_by_username;
 	extern std::map<unsigned int,int> fd_by_id;
 
 	extern std::map<unsigned int,struct partial_login> partial_logins;

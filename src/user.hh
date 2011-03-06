@@ -30,7 +30,7 @@ class user {
 
 		explicit user(const user& user);
 		explicit user(const std::string& new_username, const std::string& new_password);
-      explicit user(const std::string& serialized);
+		explicit user(const std::string& serialized);
 
 		bool set_username(const std::string& new_username);
 
@@ -61,8 +61,8 @@ class user {
 
       // static
 
-      static bool exists(const std::string& username);
-      static bool exists(const char *username);
+      static bool exists(const char *my_username);
+      static bool exists(const std::string& my_username);
 
 	private:
 
@@ -73,6 +73,8 @@ class user {
 		void span_nodes(nodelist_t& todo, friendset_t& visited);
 		void bfs(const node& root);
 		void visit(node& current, nodelist_t& todo, friendset_t& visited);
+
+		friendset_t getnumbers(std::stringstream& ss);
 };
 
 #endif

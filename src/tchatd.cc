@@ -325,9 +325,11 @@ void sub_load_users() {
 		
 	}
 
-	while(!fs.eof()) {
+	while(true) {
 		string str;
 		getline(fs, str);
+		if(fs.eof())
+			break;
 		user *loaded_user = new user(str);
 		cout << "loaded user " << loaded_user->id << ' ' << loaded_user->username << ' ' << loaded_user->pwhash << endl;
 	}
@@ -522,18 +524,18 @@ void sub_cleanup() {
 
 void sub_test() {
 
-   const char *usernames[] = { "fucker", "sucker", "shitter", "bob", NULL };
+	const char *usernames[] = { "fucker", "sucker", "shitter", "bob", NULL };
 
-   for(const char **username = usernames; *username != NULL; username++) {
-      if(!user::exists(*username)) {
-         printf("creating new user %s\n", *username);
-         new user(*username, *username);
-      }
-   }
+	for(const char **username = usernames; *username != NULL; username++) {
+		if(!user::exists(*username)) {
+			printf("creating new user %s\n", *username);
+			new user(*username, *username);
+		}
+	}
 
-   const nodelist_t& nl = (*state::users.begin())->get_nodes();
+	const nodelist_t& nl = (*state::users.begin())->get_nodes();
 
-   for(nodelist_t::const_iterator itr = nl.begin(); itr != nl.end(); itr++)
-      printf("id = %d -- distance = %d\n", itr->id, itr->distance);
+	for(nodelist_t::const_iterator itr = nl.begin(); itr != nl.end(); itr++)
+		printf("id = %d -- distance = %d\n", itr->id, itr->distance);
 
 }

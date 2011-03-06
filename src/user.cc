@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <ctype.h>
 
 using namespace std;
 
@@ -35,22 +36,28 @@ user::user(const string& new_username, const string& new_password) : id(state::n
 
 	last_action_at = created_at = time(NULL);
 
-	state::users.push_back(this);
-	state::users_by_id[id] = this;
-
 	set_username(new_username);
 	set_password(new_password);
+
+	state::users.push_back(this);
+	state::users_by_id[id] = this;
 }
 
-user::user(const string& serialized) {
-   throw runtime_error("user object deserialization not implemented yet");
-}
+#include <iostream>
 
 bool user::set_username(const string& new_username) {
 
-	// remove old username
-
 	DEBUG_MESSAGE;
+
+	// if new username exists throw exception
+
+	if(new_username == username)
+		return true;
+
+	if(user::exists(new_username))
+		throw runtime_error("username already exists");
+
+	// remove old username
 
 	if(!username.empty()) {
 		DEBUG_MESSAGE2("removing old username");
@@ -61,7 +68,7 @@ bool user::set_username(const string& new_username) {
 
 	username = new_username;
 
-	state::users_by_username[new_username.c_str()] = this;
+	state::users_by_username[username.c_str()] = this;
 
 	return true;
 }
@@ -178,43 +185,105 @@ void user::span_nodes(nodelist_t& todo, friendset_t& visited) {
 	}
 }
 
+friendset_t user::getnumbers(stringstream& ss) {
+
+	friendset_t fs;
+
+	while(true) {
+
+		unsigned int fid;
+
+		ss >> fid;
+
+		if(ss.fail())
+			break;
+
+		fs.insert(fid);
+	}
+
+	ss.clear();
+
+	return fs;
+}
+
+user::user(const string& serialized) {
+
+	string magic;
+	string new_username;
+
+	stringstream ss(stringstream::binary|stringstream::out|stringstream::in);
+
+	ss << dec << boolalpha << skipws;
+
+	ss << serialized;
+
+	ss >> magic >> id >> new_username >> pwhash >> salt >> actions >> visible >> last_action_at >> created_at;
+
+	if(magic != "u")
+		throw runtime_error("user deserialization failed at user properties");
+
+	ss >> magic;
+
+	if(magic != "f")
+		throw runtime_error("user deserialization failed at friends");
+
+	friends = getnumbers(ss);
+
+	ss >> magic;
+
+	if(magic != "r")
+		throw runtime_error("user deserialization failed at friend requests");
+
+	friend_requests = getnumbers(ss);
+
+	if(id >= state::next_user_id)
+		state::next_user_id = id + 1;
+
+	set_username(new_username);
+
+	state::users.push_back(this);
+	state::users_by_id[id] = this;
+}
+
 string user::serialize() {
 
-   stringstream ss(stringstream::binary|stringstream::out|stringstream::in);
+	// format is u ID USERNAME PWHASH SALT ACTIONS VISIBLE LAST_ACTION_AT CREATED_AT f FRIEND... r FRIEND...
 
-   // stream config
+	stringstream ss(stringstream::binary|stringstream::out|stringstream::in);
 
-   ss << dec << boolalpha;
+	// stream config
 
-   // user data
+	ss << dec << boolalpha;
 
-   ss << "u " << id << ' ' << username << ' ' << pwhash << ' ' << salt << ' ';
-   ss << actions << ' ' << visible << ' ';
-   ss << last_action_at << ' ' << created_at << ' ';
+	// user data
 
-   // friends
+	ss << "u " << id << ' ' << username << ' ' << pwhash << ' ' << salt << ' ';
+	ss << actions << ' ' << visible << ' ';
+	ss << last_action_at << ' ' << created_at << ' ';
 
-   ss << "f ";
-   for(friendset_t::iterator fitr = friends.begin(); fitr != friends.end(); fitr++)
-      ss << *fitr << ' ';
+	// friends
 
-   // friend requests
+	ss << "f ";
+	for(friendset_t::iterator fitr = friends.begin(); fitr != friends.end(); fitr++)
+		ss << *fitr << ' ';
 
-   ss << "r ";
-   for(friendset_t::iterator fitr = friend_requests.begin(); fitr != friend_requests.end(); fitr++)
-      ss << *fitr << ' ';
+	// friend requests
 
-   //terminator (newline)
+	ss << "r ";
+	for(friendset_t::iterator fitr = friend_requests.begin(); fitr != friend_requests.end(); fitr++)
+		ss << *fitr << ' ';
 
-   ss << endl;
+	//terminator (newline)
 
-   return ss.str();
+	ss << endl;
+
+	return ss.str();
 }
 
-bool user::exists(const std::string& username) {
-   return exists(username.c_str());
+bool user::exists(const string& my_username) {
+	return user::exists(my_username.c_str());
 }
 
-bool user::exists(const char *username) {
-   return state::users_by_username.find(username) != state::users_by_username.end();
+bool user::exists(const char *my_username) {
+	return state::users_by_username.find(my_username) != state::users_by_username.end();
 }

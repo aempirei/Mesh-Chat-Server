@@ -3,7 +3,11 @@
 #include "tchatd.hh"
 
 bool strcase_compar::operator()(const char * str1, const char *str2) {
-	return strcasecmp(str1, str2);
+	return strcasecmp(str1, str2) < 0;
+}
+
+bool str_compar::operator()(const char * str1, const char *str2) {
+	return strcmp(str1, str2) < 0;
 }
 
 node::node(unsigned int id, unsigned int distance) : id(id), distance(distance) {
