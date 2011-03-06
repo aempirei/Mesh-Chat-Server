@@ -69,10 +69,6 @@ int main(int argc, char **argv, char **envp) {
 
 	sub_signals();
 
-	// register atexit cleanup
-
-	sub_atexit();
-
 	// check options
 
 	sub_options(argc, argv);
@@ -84,6 +80,10 @@ int main(int argc, char **argv, char **envp) {
 	// load state
 
 	sub_load();
+
+	// register atexit cleanup
+
+	sub_atexit();
 
 	// start main event loop
 
