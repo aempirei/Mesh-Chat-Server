@@ -61,13 +61,13 @@ int randomrange(int a, int b) {
 
 int main(int argc, char **argv) {
 
-   // register signal handlers
+	// register signal handlers
 
-   sub_signals();
+	sub_signals();
 
-   // register atexit cleanup
+	// register atexit cleanup
 
-   sub_atexit();
+	sub_atexit();
 
 	// check options
 
@@ -83,12 +83,12 @@ int main(int argc, char **argv) {
 
 	// start main event loop
 
-   if(config::test)
-      sub_test();
-   else
-      sub_work();
+	if(config::test)
+		sub_test();
+	else
+		sub_work();
 
-   // exit successfully
+	// exit successfully
 
 	exit(EXIT_SUCCESS);
 }
