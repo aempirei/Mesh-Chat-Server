@@ -11,6 +11,7 @@ namespace config {
 	unsigned int backlog = SOMAXCONN;
 	unsigned int maxcmdsz = MAXCMDSZ;
 	unsigned int maxusersz = DFLUSERSZ;
+	unsigned int maxdistance = DFLDISTANCE;
 
 	// configpath gets prepended by $HOME during sub_config()
 

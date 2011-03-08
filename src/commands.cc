@@ -100,7 +100,7 @@ void tc_command_user(int fd, const paramlist_t& params, const string& msg) {
 
 		if(is_valid_username(username)) {
 
-			if(state::users_by_username.find(username.c_str()) == state::users_by_username.end()) {
+			if(state::users_by_username.missing(username.c_str())) {
 
 				// set username since its valid
 
@@ -216,7 +216,7 @@ void tc_command_friend(int fd, const paramlist_t& params, const string& msg) {
 
 			do_message(fd, MCPARAMS, CFRIEND);
 
-		} else if(state::users_by_username.find(params.front().c_str()) != state::users_by_username.end()) {
+		} else if(state::users_by_username.has(params.front().c_str())) {
 
 			// if user exists, then check if a friend request exists in the opposite direction
 			// then decide if this represents a new friend request or a friend request approval
@@ -228,7 +228,7 @@ void tc_command_friend(int fd, const paramlist_t& params, const string& msg) {
 				do_message(fd, MCNOSELF, CFRIEND);
 			} else {
 
-				if(user2->friend_requests.find(user1->id) != user2->friend_requests.end()) {
+				if(user2->friend_requests.has(user1->id)) {
 
 					// user is in the friend_request lists of target,
 					// so remove friend_request and then add as friends for both users
@@ -273,7 +273,7 @@ void tc_command_anti(int fd, const paramlist_t& params, const string& msg) {
 
 			do_message(fd, MCPARAMS, CANTI);
 
-		} else if(state::users_by_username.find(params.front().c_str()) != state::users_by_username.end()) {
+		} else if(state::users_by_username.has(params.front().c_str())) {
 
 			user *user1 = state::users_by_fd[fd];
 			user *user2 = state::users_by_username[params.front().c_str()];
@@ -344,7 +344,7 @@ void tc_command_tell(int fd, const paramlist_t& params, const string& msg) {
 
 			do_message(fd, MCPARAMS, CTELL);
 
-		} else if(state::users_by_username.find(params.front().c_str()) != state::users_by_username.end()) {
+		} else if(state::users_by_username.has(params.front().c_str())) {
 
 			user *user1 = state::users_by_fd[fd];
 			user *user2 = state::users_by_username[params.front().c_str()];
@@ -388,7 +388,7 @@ void tc_command_whois(int fd, const paramlist_t& params, const string& msg) {
 
 				user2 = user1;
 
-			} else if(state::users_by_username.find(params.front().c_str()) != state::users_by_username.end()) {
+			} else if(state::users_by_username.has(params.front().c_str())) {
 
 				user2 = state::users_by_username[params.front().c_str()];
 			}
@@ -436,12 +436,13 @@ void tc_command_scan(int fd, const paramlist_t& params, const string& msg) {
 	} else if(is_validated(fd)) {
 
 		user *user1 = state::users_by_fd[fd];
+		nodelist_t& nl = user1->get_nodes();
 
 		do_message(fd, MCBEGIN, MCDISTANCE);
 
-		for(nodelist_t::iterator ritr = user1->get_nodes().begin(); ritr != user1->get_nodes().end(); ritr++)
+		for(nodelist_t::iterator ritr = nl.begin(); ritr != nl.end(); ritr++)
 			if(ritr->get_user()->visible)
-				do_vmessage(fd, MCDISTANCE, "%d %s", ritr->distance, ritr->get_user()->username.c_str());
+					do_vmessage(fd, MCDISTANCE, "%d %s", ritr->distance, ritr->get_user()->username.c_str());
 
 		do_message(fd, MCEND, MCDISTANCE);
 

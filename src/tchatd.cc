@@ -142,6 +142,7 @@ void usage(const char *prog) {
 	printf("\t%-*s%s (default: %s)\n", width, "-A ipaddr", "source ip address", config::ip.s_addr == INADDR_ANY ? "any" : inet_ntop(AF_INET, &config::ip, str, sizeof(str)));
 	printf("\t%-*s%s (default: %d)\n", width, "-c maxcmdsz", "maximum command size", config::maxcmdsz);
 	printf("\t%-*s%s (default: %d)\n", width, "-n maxusersz", "maximum username length", config::maxusersz);
+	printf("\t%-*s%s (default: %d)\n", width, "-d maxdistance", "maximum relay distance", config::maxdistance);
 	printf("\t%-*s%s (default: %s)\n", width, "-M motd", "message of the day", config::motd.c_str());
 	printf("\t%-*s%s (default: %s)\n", width, "-S servername", "server name", config::servername.c_str());
 	printf("\t%-*s%s\n", width, "-v", "verbose");
@@ -170,7 +171,7 @@ void sub_options(int argc, char **argv) {
 
 	int opt;
 
-	while ((opt = getopt(argc, argv, "vVD@hP:T:A:B:c:n:M:S:")) != -1) {
+	while ((opt = getopt(argc, argv, "vVD@hP:T:A:B:c:n:M:S:d:")) != -1) {
 
 		switch (opt) {
 
@@ -210,6 +211,11 @@ void sub_options(int argc, char **argv) {
 			case 'c':
 
 				config::maxcmdsz = strtoul(optarg, NULL, 0);
+				break;
+
+			case 'd':
+
+				config::maxdistance = strtoul(optarg, NULL, 0);
 				break;
 
 			case 'T':
@@ -294,6 +300,7 @@ void sub_config() {
 		printf("%*s | %d\n", width, "connection backlog", config::backlog);
 		printf("%*s | %d bytes\n", width, "maximum command size", config::maxcmdsz);
 		printf("%*s | %d bytes\n", width, "maximum username length", config::maxusersz);
+		printf("%*s | %d hops\n", width, "maximum relay distance", config::maxdistance);
 		printf("%*s | %s\n", width, "server name", config::servername.c_str());
 		printf("%*s | %s\n", width, "message of the day", config::motd.c_str());
 		printf("%*s | %s\n", width, "configuration path", config::configpath.c_str());
@@ -315,13 +322,15 @@ void sub_load_users() {
 	// check if save file exists
 
 	if(stat(fullsavepath.c_str(), &statbuf) == -1 && errno == ENOENT) {
-		cout << "save file " << fullsavepath << " not found" << endl;
+		if(config::verbose)
+			cout << "save file " << fullsavepath << " not found" << endl;
 		return;
 	}
 
 	// open file 
 	
-	cout << "loading from " << fullsavepath << endl;
+	if(config::verbose)
+		cout << "loading from " << fullsavepath << endl;
 
 	fs.open(fullsavepath.c_str(), fstream::in | fstream::binary);
 	if(fs.fail()) {
@@ -336,7 +345,10 @@ void sub_load_users() {
 		getline(fs, str);
 		if(fs.eof())
 			break;
-		new user(str);
+		user *u = new user(str);
+		if(config::verbose) {
+			cout << "loaded user #" << u->id << ' ' << u->username << endl;
+		}
 	}
 
 	fs.close();
@@ -478,7 +490,8 @@ void sub_save_users() {
 
 	if(stat(config::configpath.c_str(), &statbuf) == -1 && errno == ENOENT) {
 
-		cout << "creating directory " << config::configpath << endl;
+		if(config::verbose)
+			cout << "creating directory " << config::configpath << endl;
 
 		if(mkdir(config::configpath.c_str(), 0777) == -1)
 			handle_error("mkdir");
@@ -486,7 +499,8 @@ void sub_save_users() {
 
 	// save out to the save file
 
-	cout << "saving to " << fullsavepath << endl;
+	if(config::verbose)
+		cout << "saving to " << fullsavepath << endl;
 
 	try {
 
@@ -533,6 +547,18 @@ void sub_cleanup() {
 
 void sub_test() {
 
+	MAP<const char *,unsigned int,strcase_compar> tt;
+	MAP<int,int> ti;
+	SET<int> ts;
+
+	tt["cocks"] = 666;
+	ti[666] = 555;
+
+	cout << "WE GOT IT? " << tt.missing("COCKS") << endl;
+	cout << "WE GOT IT? " << tt.missing("dicks") << endl;
+	cout << "WE GOT IT? " << ti.missing(555) << endl;
+	cout << "WE GOT IT? " << ti.missing(666) << endl;
+
 	const char *usernames[] = { "fucker", "sucker", "shitter", "bob", NULL };
 
 	for(const char **username = usernames; *username != NULL; username++) {
@@ -542,7 +568,7 @@ void sub_test() {
 		}
 	}
 
-	const nodelist_t& nl = (*state::users.begin())->get_nodes();
+	const nodelist_t& nl = state::users.front()->get_nodes();
 
 	for(nodelist_t::const_iterator itr = nl.begin(); itr != nl.end(); itr++)
 		printf("id = %d -- distance = %d\n", itr->id, itr->distance);

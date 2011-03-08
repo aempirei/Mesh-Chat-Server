@@ -127,7 +127,7 @@ bool user::has_friend(const user *user) {
 }
 
 bool user::has_friend(unsigned int id) {
-	return(friends.find(id) != friends.end());
+	return friends.has(id);
 }
 
 int user::get_fd() {
@@ -144,23 +144,31 @@ void user::visit(node& current, nodelist_t& todo, friendset_t& visited) {
 
 	// if this current node is not in the visited set then visit it
 
-	if(visited.find(current.id) == visited.end()) {
+	if(visited.missing(current.id)) {
 
 		// mark this node as visited
 
 		visited.insert(current.id);
 
-		nodes.push_back(current);
+		// save it as a node if its close enough
+
+		if(current.distance <= config::maxdistance)
+			nodes.push_back(current);
 
 		// push all the unvisited neighbors
 		// onto the back of the todo list
 		// with an adjusted distance
+		// so long as they are within the neighborhood
+		// (note that this last constraint is an optimization
+		// that works for the BFS or OSPF algorithms but not
+		// any general spanning tree algorithm)
 
 		user *user = state::users_by_id[current.id];
 
 		for(friendset_t::iterator fitr = user->friends.begin(); fitr != user->friends.end(); fitr++)
-			if(visited.find(*fitr) == visited.end())
-				todo.push_back(node(*fitr, current.distance + 1));
+			if(visited.missing(*fitr))
+				if(current.distance + 1 <= config::maxdistance)
+					todo.push_back(node(*fitr, current.distance + 1));
 	}
 }
 
@@ -285,5 +293,5 @@ bool user::exists(const string& my_username) {
 }
 
 bool user::exists(const char *my_username) {
-	return state::users_by_username.find(my_username) != state::users_by_username.end();
+	return state::users_by_username.has(my_username);
 }

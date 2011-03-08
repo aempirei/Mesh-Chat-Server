@@ -52,17 +52,11 @@ void do_message(int fd, const char *msg_code, const char *msg) {
 
 	// make sure msg_code has a msg_str otherwise let the msg_str be "unknown code"
 
-	if(command::messages.find(msg_code) == command::messages.end())
-		msg_str = "unknown code";
-	else
-		msg_str = command::messages[msg_code];
+	msg_str = command::messages.has(msg_code) ? command::messages[msg_code] : "unknown code";
 
 	// decide if the code has a custom message or not
 
-	if(msg == NULL)
-		snprintf(line, config::maxcmdsz, "%s %s\n", msg_code, msg_str);
-	else
-		snprintf(line, config::maxcmdsz, "%s %s :%s\n", msg_code, msg_str, msg);
+	snprintf(line, config::maxcmdsz, msg ? "%s %s :%s\n" : "%s %s\n", msg_code, msg_str, msg);
 
 	do_send(fd, line, strlen(line), 0);
 }
@@ -100,7 +94,7 @@ void do_disconnect(int fd) {
 
 	DEBUG_PRINTF("disconnecting %d\n", fd);
 
-	if(state::users_by_fd.find(fd) != state::users_by_fd.end()) {
+	if(state::users_by_fd.has(fd)) {
 		unsigned int user_id = state::users_by_fd[fd]->id;
 		state::fd_by_id.erase(user_id);
 	}
@@ -166,10 +160,11 @@ void do_simple_cmd(const char *cmd, int fd, const paramlist_t& params, const str
 		} else {
 
 			user *user = state::users_by_fd[fd];
+	    	nodelist_t& nl = user->get_nodes();
 
-			// just walk the tree and relay to online users
+			// just walk the tree and relay to online users within the neighborhood
 
-			for(nodelist_t::iterator ritr = user->get_nodes().begin(); ritr != user->get_nodes().end(); ritr++)
+			for(nodelist_t::iterator ritr = nl.begin(); ritr != nl.end(); ritr++)
 				if(ritr->get_user()->is_online())
 					do_relay(ritr->get_fd(), user->username, cmd, ritr->distance, params, msg);
 		}
@@ -203,7 +198,7 @@ bool is_valid_partial_login(int fd, const char *username, const char *password) 
 
 		DEBUG_MESSAGE2("doing complete login check");
 
-		if(state::users_by_username.find(pl.username.c_str()) == state::users_by_username.end()) {
+		if(state::users_by_username.missing(pl.username.c_str())) {
 
 			// create new user since we dont know this user
 			// user constructor knows how to save itself to the relevant places
@@ -235,7 +230,7 @@ bool is_valid_partial_login(int fd, const char *username, const char *password) 
 				// unless the user is already in the map, which in that case
 				// error no double logins
 
-				if(state::fd_by_id.find(known_user->id) == state::fd_by_id.end()) {
+				if(state::fd_by_id.missing(known_user->id)) {
 
 					state::users_by_fd[fd] = known_user;
 
@@ -288,14 +283,14 @@ bool is_validated(int fd) {
 
 	DEBUG_MESSAGE;
 
-	return (state::users_by_fd.find(fd) != state::users_by_fd.end());
+	return state::users_by_fd.has(fd);
 }
 
 bool is_online(unsigned int id) {
 
 	DEBUG_MESSAGE;
 
-	return (state::fd_by_id.find(id) != state::fd_by_id.end());
+	return state::fd_by_id.has(id);
 }
 
 void do_connect() {
@@ -408,7 +403,7 @@ void do_handle_input(int fd) {
 			// if connection was closed, then quickly leave since
 			// the iterator for ss is no longer valid
 
-			if(state::fdset.find(fd) == state::fdset.end())
+			if(state::fdset.missing(fd))
 				return;
 		}
 

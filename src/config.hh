@@ -21,7 +21,9 @@ namespace config {
 #define DFLSAVEFILE   "tchatd.save"
 #define DFLSERVERNAME "our tchatd server"
 #define DFLMOTD       "welcome to our tchat server"
+#define DFLDISTANCE   3
 
+	extern unsigned int maxdistance;
 	extern unsigned int port;
 	extern unsigned int connections;
 	extern unsigned int backlog;
