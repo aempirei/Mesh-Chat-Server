@@ -8,7 +8,7 @@
 #include "state.hh"
 #include "types.hh"
 
-#define PROGRAM "Topology Chat Server"
+#define PROGRAM "Mesh Chat Server"
 #define VERSION "1.0"
 #define DEBUG_MESSAGE     DEBUG_MESSAGE2(__FUNCTION__)
 #define DEBUG_MESSAGE2(a) config::debug && puts(a)

@@ -1,15 +1,15 @@
-TARGETS = bin/tchatd 
+TARGETS = bin/meshchatd 
 INSTALL_PATH = /usr/local/bin
 
-.PHONY: all clean wipe src/tchatd install
+.PHONY: all clean wipe src/meshchatd install
 
 all: $(TARGETS)
 
-src/tchatd:
+src/meshchatd:
 	( cd src ; make )
 
-bin/tchatd: src/tchatd
-	cp src/tchatd $@
+bin/meshchatd: src/meshchatd
+	cp src/meshchatd $@
 
 install: all
 	install -m755 $(TARGETS) $(INSTALL_PATH)

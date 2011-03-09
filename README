@@ -1,9 +1,9 @@
-Topology Chat Server 1.0 (tchatd-1.0)
+Mesh Chat Server 1.0 (tchatd-1.0)
 
 Copyright(c) 2011 by Christopher Abad
 20 GOTO 10 | twentygoto10.com
 
-git://github.com/aempirei/Topology-Chat-Server.git
+git://github.com/aempirei/Mesh-Chat-Server.git
 
 You will need g++ the GNU C++ compiler, as tchatd is a C++ program. The reason I
 had chosen to write this in C++ is because I required the performance of a
