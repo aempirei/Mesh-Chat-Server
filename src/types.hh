@@ -1,5 +1,5 @@
-#ifndef TCHATD_TYPES_HH
-#define TCHATD_TYPES_HH
+#ifndef MESHCHATD_TYPES_HH
+#define MESHCHATD_TYPES_HH
 
 #include <list>
 #include <set>

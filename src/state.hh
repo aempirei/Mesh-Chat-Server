@@ -1,5 +1,5 @@
-#ifndef TCHATD_STATE_HH
-#define TCHATD_STATE_HH
+#ifndef MESHCHATD_STATE_HH
+#define MESHCHATD_STATE_HH
 
 #include <sstream>
 

@@ -1,6 +1,6 @@
 #include <stdexcept>
 
-#include "tchatd.hh"
+#include "meshchatd.hh"
 #include "network.hh"
 #include "user.hh"
 

@@ -1,5 +1,5 @@
-#ifndef TCHATD_HH
-#define TCHATD_HH
+#ifndef MESHCHATD_HH
+#define MESHCHATD_HH
 
 #include <map>
 #include <string>

@@ -1,5 +1,5 @@
-#ifndef TCHATD_CONFIG_HH
-#define TCHATD_CONFIG_HH
+#ifndef MESHCHATD_CONFIG_HH
+#define MESHCHATD_CONFIG_HH
 
 #include <string>
 
@@ -17,10 +17,10 @@ namespace config {
 #define DFLUSERSZ     16
 #define MAXCMDSZ      512
 #define DFLPORT       30201
-#define DFLCONFIGPATH ".tchatd"
-#define DFLSAVEFILE   "tchatd.save"
-#define DFLSERVERNAME "our tchatd server"
-#define DFLMOTD       "welcome to our tchat server"
+#define DFLCONFIGPATH ".meshchatd"
+#define DFLSAVEFILE   "meshchatd.save"
+#define DFLSERVERNAME "our meshchatd server"
+#define DFLMOTD       "welcome to our meshchat server"
 #define DFLDISTANCE   3
 
 	extern unsigned int maxdistance;

@@ -1,4 +1,4 @@
-#include "tchatd.hh"
+#include "meshchatd.hh"
 #include "user.hh"
 #include "network.hh"
 #include "commands.hh"
@@ -36,7 +36,7 @@ namespace command {
 
 	struct msg_code_msg_pair msg_pairs[] = {
 
-		{ MCSERVER  , "tchatd-" VERSION             },
+		{ MCSERVER  , "meshchatd-" VERSION          },
 		{ MCMOTD    , "message of the day"          },
 		{ MCNAME    , "server name"                 },
 		{ MCCREATED , "login created"               },

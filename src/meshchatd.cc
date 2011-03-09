@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 
-#include "tchatd.hh"
+#include "meshchatd.hh"
 #include "user.hh"
 #include "network.hh"
 #include "commands.hh"

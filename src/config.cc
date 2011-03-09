@@ -1,4 +1,4 @@
-#include "tchatd.hh"
+#include "meshchatd.hh"
 
 namespace config {
 

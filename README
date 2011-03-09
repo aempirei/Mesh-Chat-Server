@@ -1,12 +1,13 @@
-Mesh Chat Server 1.0 (tchatd-1.0)
+Mesh Chat Server 1.0 (meshchatd-1.0)
 
 Copyright(c) 2011 by Christopher Abad
 20 GOTO 10 | twentygoto10.com
 
 git://github.com/aempirei/Mesh-Chat-Server.git
 
-You will need g++ the GNU C++ compiler, as tchatd is a C++ program. The reason I
-had chosen to write this in C++ is because I required the performance of a
-compiled language while the convenience of OOP and STL. Simply typing 'make'
-should compile this for you. './tchatd -h' should provide you with enough
-configuration information. This software is currently in early development.
+You will need g++ the GNU C++ compiler, as meshchatd is a C++ program. The
+reason I had chosen to write this in C++ is because I required the performance
+of a compiled language while the convenience of OOP and STL. Simply typing
+'make' should compile this for you. './meshchatd -h' should provide you with
+enough configuration information. This software is currently in early
+development.

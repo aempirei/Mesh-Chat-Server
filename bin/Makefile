@@ -1,10 +1,10 @@
-TARGETS = tchatd
+TARGETS = meshchatd
 
 .PHONY: all clean wipe
 
 all:
 
-tchatd:
+meshchatd:
 
 clean:
 	rm -f *.o *~
