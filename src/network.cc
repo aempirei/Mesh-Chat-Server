@@ -341,8 +341,8 @@ void do_read(int fd) {
 
 		case -1:
 
-			handle_error("recv");
-			break;
+			perror("recv");
+			DEBUG_PRINTF("recv: %s\n", strerror(errno));
 
 		case 0:
 
