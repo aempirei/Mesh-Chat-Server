@@ -1,0 +1,4 @@
+throttle sockets that send invalid commands
+implement missing functions (such as vector)
+add encryption
+save to database
