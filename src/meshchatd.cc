@@ -409,12 +409,22 @@ void sub_work() {
 
 	DEBUG_MESSAGE;
 
+	state::timer = time(NULL);
+
 	while(!state::done) {
 
 		// watch all file descriptors for read or exception work
 
 		int nfds;
 		int n;
+
+		// if timer is up, then save
+
+		if((unsigned long)time(NULL) - state::timer >= config::savetimer) {
+			if(config::verbose)
+				cout << "save timer triggered" << endl;
+			sub_save();
+		}
 
 		// init the FD SETs
 

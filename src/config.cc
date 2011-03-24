@@ -12,6 +12,7 @@ namespace config {
 	unsigned int maxcmdsz = MAXCMDSZ;
 	unsigned int maxusersz = DFLUSERSZ;
 	unsigned int maxdistance = DFLDISTANCE;
+	unsigned int savetimer = DFLSAVETIMER;
 
 	// configpath gets prepended by $HOME during sub_config()
 

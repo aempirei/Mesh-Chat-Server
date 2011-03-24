@@ -5,6 +5,8 @@ namespace state {
 
 	int sd = -1;
 
+	time_t timer;
+
 	fd_set rfds;
 	fd_set wfds;
 

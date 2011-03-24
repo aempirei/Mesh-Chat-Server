@@ -16,6 +16,8 @@ namespace state {
 
 	extern int sd;
 
+	extern time_t timer;
+
 	extern fd_set rfds;
 	extern fd_set wfds;
 

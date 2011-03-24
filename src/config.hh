@@ -22,6 +22,7 @@ namespace config {
 #define DFLSERVERNAME "our meshchatd server"
 #define DFLMOTD       "welcome to our meshchat server"
 #define DFLDISTANCE   3
+#define DFLSAVETIMER  60
 
 	extern unsigned int maxdistance;
 	extern unsigned int port;
@@ -29,6 +30,7 @@ namespace config {
 	extern unsigned int backlog;
 	extern unsigned int maxcmdsz;
 	extern unsigned int maxusersz;
+	extern unsigned int savetimer;
 
 	extern std::string configpath;
 	extern std::string savefile;
