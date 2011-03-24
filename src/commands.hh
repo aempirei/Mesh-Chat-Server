@@ -24,6 +24,7 @@ command_fn_t tc_command_tell;
 command_fn_t tc_command_vector;
 command_fn_t tc_command_whisper;
 command_fn_t tc_command_whois;
+command_fn_t tc_command_help;
 
 namespace command {
 
@@ -42,11 +43,14 @@ namespace command {
 #define CSCAN    "scan"
 #define CFRIENDS "friends"
 #define CQUIT    "quit"
+#define CHELP    "help"
 
 	extern struct command_name_fptr_pair {
 
 		const char *command_name;
 		const command_fn_t *command_fptr;
+		const char *command_params;
+		const char *command_help;
 
 	} command_pairs[];
 
@@ -67,6 +71,8 @@ namespace command {
 #define MCRREQUEST "065"
 #define MCRANTI    "066"
 #define MCWHOIS    "067"
+
+#define MCHELP     "070"
 
 #define MCBEGIN    "080"
 #define MCEND      "081"

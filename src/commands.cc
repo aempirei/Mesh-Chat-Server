@@ -14,22 +14,23 @@ namespace command {
 
 	struct command_name_fptr_pair command_pairs[] = {
 
-		{ CUSER   , tc_command_user    }, // USER username
-		{ CPASS   , tc_command_pass    }, // PASS password
-		{ CSET    , tc_command_set     }, // SET property :value
-		{ CPING   , tc_command_ping    }, // PING :challenge
-		{ CPONG   , tc_command_pong    }, // PONG :response
-		{ CFRIEND , tc_command_friend  }, // FRIEND username
-		{ CANTI   , tc_command_anti    }, // ANTI username
-		{ CSAY    , tc_command_say     }, // SAY :message
-		{ CVECTOR , tc_command_vector  }, // VECTOR username :message
-		{ CWHISPER, tc_command_whisper }, // WHISPER :message
-		{ CTELL   , tc_command_tell    }, // TELL username :message
-		{ CWHOIS  , tc_command_whois   }, // WHOIS username
-		{ CSCAN   , tc_command_scan    }, // SCAN
-		{ CFRIENDS, tc_command_friends }, // FRIENDS
-		{ CQUIT   , tc_command_quit    }, // QUIT
-		{ NULL    , NULL               }
+		{ CUSER   , tc_command_user    , "username"          , "enter or change username"         },
+		{ CPASS   , tc_command_pass    , "password"          , "enter or change password"         },
+		{ CSET    , tc_command_set     , "property :value"   , "set property"                     },
+		{ CPING   , tc_command_ping    , ":challenge"        , "ping with challenge"              },
+		{ CPONG   , tc_command_pong    , ":response"         , "pong with challenge response"     },
+		{ CFRIEND , tc_command_friend  , "username"          , "request friend connection"        },
+		{ CANTI   , tc_command_anti    , "username"          , "remove friend connection"         },
+		{ CSAY    , tc_command_say     , ":message"          , "send group message"               },
+		{ CVECTOR , tc_command_vector  , "username :message" , "send directional group message"   },
+		{ CWHISPER, tc_command_whisper , ":message"          , "send quiet group message"         },
+		{ CTELL   , tc_command_tell    , "username :message" , "send private message"             },
+		{ CWHOIS  , tc_command_whois   , "[username]"        , "whois user or self"               },
+		{ CSCAN   , tc_command_scan    , ""                  , "scan network"                     },
+		{ CFRIENDS, tc_command_friends , ""                  , "show friends and friend requests" },
+		{ CQUIT   , tc_command_quit    , ""                  , "save and quit"                    },
+		{ CHELP   , tc_command_help    , ""                  , "show help"                        },
+		{ NULL    , NULL               , NULL,                 NULL                               }
 	};
 
 	commandmap_t calls;
@@ -49,6 +50,8 @@ namespace command {
 		{ MCRREQUEST, "request from"                },
 		{ MCRANTI   , "anti from"                   },
 		{ MCWHOIS   , "whois"                       },
+
+		{ MCHELP    , "help"                        },
 
 		{ MCBEGIN   , "begin"                       },
 		{ MCEND     , "end"                         },
@@ -425,6 +428,25 @@ void tc_command_whois(int fd, const paramlist_t& params, const string& msg) {
 
 	} else {
 		do_message(fd, MCLOGIN, CWHOIS);
+	}
+}
+void tc_command_help(int fd, const paramlist_t& params, const string& msg) {
+
+	DEBUG_PRINTF("%s ( %d [ %ld ] %s )\n", __FUNCTION__, fd, (long)params.size(), msg.c_str());
+
+	if(params.size() != 0) {
+		do_message(fd, MCPARAMS, CHELP);
+	} else {
+		do_message(fd, MCBEGIN, MCHELP);
+
+		for(struct command::command_name_fptr_pair *cmd = command::command_pairs; cmd->command_name != NULL; cmd++) {
+			char help_line[128];
+
+			snprintf(help_line, sizeof(help_line), "%-8s %-20s -- %s", cmd->command_name, cmd->command_params, cmd->command_help);
+			do_message(fd, MCHELP, help_line);
+		}
+
+		do_message(fd, MCEND MCHELP);
 	}
 }
 void tc_command_scan(int fd, const paramlist_t& params, const string& msg) {
