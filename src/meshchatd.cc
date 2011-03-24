@@ -421,6 +421,7 @@ void sub_work() {
 		// if timer is up, then save
 
 		if((unsigned long)time(NULL) - state::timer >= config::savetimer) {
+			state::timer = time(NULL);
 			if(config::verbose)
 				cout << "save timer triggered" << endl;
 			sub_save();
