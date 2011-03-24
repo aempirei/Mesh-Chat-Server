@@ -152,7 +152,7 @@ void user::visit(node& current, nodelist_t& todo, friendset_t& visited) {
 
 		// save it as a node if its close enough
 
-		if(current.distance > 0 && current.distance <= config::maxdistance)
+		if(current.distance <= config::maxdistance)
 			nodes.push_back(current);
 
 		// push all the unvisited neighbors
