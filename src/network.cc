@@ -254,6 +254,8 @@ bool is_valid_partial_login(int fd, const char *username, const char *password) 
 
 				// login was bad so reset the partial login state
 
+				do_message(fd, MCPASS);
+
 				state::partial_logins.erase(fd);
 				do_message(fd, MCRESET);
 

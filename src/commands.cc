@@ -68,7 +68,6 @@ namespace command {
 		{ MCLOGIN   , "command requires login"      },
 
 		{ MCPARAMS  , "incorrect parameters"        },
-		{ MCMSG     , "missing message"             },
 		{ MCCMD     , "unknown command"             },
 		{ MCUSERINV , "username invalid"            },
 		{ MCUSERUNK , "unknown user"                },
@@ -112,7 +111,7 @@ void tc_command_user(int fd, const paramlist_t& params, const string& msg) {
 
 			} else {
 
-				do_message(fd, MCUSER);
+				do_message(fd, MCUSER, username.c_str());
 			}
 
 		} else {
@@ -138,7 +137,6 @@ void tc_command_user(int fd, const paramlist_t& params, const string& msg) {
 
 	} else {
 
-		do_message(fd, MCUSER);
 		// dis-allow user change
 	}
 }
@@ -178,8 +176,6 @@ void tc_command_pass(int fd, const paramlist_t& params, const string& msg) {
 
 		// FIXME: add if too many attempts, ban
 		// otherwise wrong password retard
-
-		do_message(fd, MCPASS);
 	}
 }
 void tc_command_set(int fd, const paramlist_t& params, const string& msg) {
@@ -260,7 +256,7 @@ void tc_command_friend(int fd, const paramlist_t& params, const string& msg) {
 				}
 			}
 		} else {
-			do_message(fd, MCUSERUNK, CFRIEND);
+			do_message(fd, MCUSERUNK, string() + CFRIEND + ' ' + params.front().c_str());
 		}
 	} else {
 		do_message(fd, MCLOGIN, CFRIEND);
@@ -300,7 +296,7 @@ void tc_command_anti(int fd, const paramlist_t& params, const string& msg) {
 			}
 
 		} else {
-			do_message(fd, MCUSERUNK, CANTI);
+			do_message(fd, MCUSERUNK, string("") + CANTI + ' ' + params.front().c_str());
 		}
 
 	} else {
@@ -362,7 +358,7 @@ void tc_command_tell(int fd, const paramlist_t& params, const string& msg) {
 			}
 
 		} else {
-			do_message(fd, MCUSERUNK, CTELL);
+			do_message(fd, MCUSERUNK, string("") + CTELL +  ' ' + params.front().c_str());
 		}
 
 	} else {
@@ -398,7 +394,7 @@ void tc_command_whois(int fd, const paramlist_t& params, const string& msg) {
 
 			if(user2 == NULL) {
 
-				do_message(fd, MCUSERUNK, CWHOIS);
+				do_message(fd, MCUSERUNK, string("") + CWHOIS + ' ' + params.front().c_str());
 
 			} else {
 
@@ -446,7 +442,7 @@ void tc_command_help(int fd, const paramlist_t& params, const string& msg) {
 			do_message(fd, MCHELP, help_line);
 		}
 
-		do_message(fd, MCEND MCHELP);
+		do_message(fd, MCEND, MCHELP);
 	}
 }
 void tc_command_scan(int fd, const paramlist_t& params, const string& msg) {
